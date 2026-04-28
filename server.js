@@ -16,16 +16,22 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Helper to build absolute URL from request (handles proxies)
+function getAbsoluteUrl(req, relativePath) {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${protocol}://${host}${relativePath}`;
+}
+
 // File upload configuration with random filenames
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
-// Configure multer storage to generate a random name
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    const randomName = crypto.randomUUID() + ext; // e.g., "550e8400-e29b-41d4-a716-446655440000.jpg"
+    const randomName = crypto.randomUUID() + ext;
     cb(null, randomName);
   }
 });
@@ -34,17 +40,23 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10 MB max
 });
 
+// Serve uploaded files statically
 app.use('/uploads', express.static(uploadsDir, {
   maxAge: '12d',
   etag: true,
   lastModified: true
 }));
 
-// File upload endpoint
+// File upload endpoint – returns absolute URL
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl, name: req.file.originalname, type: req.file.mimetype });
+  const relativePath = `/uploads/${req.file.filename}`;
+  const absoluteUrl = getAbsoluteUrl(req, relativePath);
+  res.json({
+    url: absoluteUrl,
+    name: req.file.originalname,
+    type: req.file.mimetype
+  });
 });
 
 // Session for admin
@@ -149,7 +161,7 @@ function getClientIP(socket) {
   return socket.handshake.address;
 }
 
-// ---- Discord send for chat messages (embed with optional file and link) ----
+// ---- Discord send for chat messages (embed with absolute URLs) ----
 async function sendToDiscord(name, avatar, text, ip, file = null) {
   if (!WEBHOOK_URL) return;
   const embed = {
@@ -159,6 +171,7 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
   };
   let description = text || '';
   if (file) {
+    // file.url is already absolute (constructed during upload)
     if (file.type && file.type.startsWith('image/')) {
       embed.image = { url: file.url };
       description += description ? `\n\n[🖼️ View full size](${file.url})` : `[🖼️ View full size](${file.url})`;
