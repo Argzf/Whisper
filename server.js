@@ -217,6 +217,9 @@ async function sendJoinLog(name, avatar, userId, ip) {
 
 let messages = [];
 
+// ---- Socket to user ID mapping (for identity change broadcast) ----
+let userSocketMap = new Map(); // socketId -> userId
+
 io.on('connection', (socket) => {
   console.log('🔌 New connection');
   socket.on('identify', (storedUserId, callback) => {
@@ -235,6 +238,7 @@ io.on('connection', (socket) => {
       saveUserMappings();
     }
     socket.userIdentity = { name, avatar, userId };
+    userSocketMap.set(socket.id, userId); // store mapping
     callback({ userId, name, avatar });
     sendJoinLog(name, avatar, userId, clientIP);
   });
@@ -261,23 +265,24 @@ io.on('connection', (socket) => {
     await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
   });
 
-  socket.on('disconnect', () => console.log('🔌 Disconnected'));
+  socket.on('disconnect', () => {
+    userSocketMap.delete(socket.id);
+    console.log('🔌 Disconnected');
+  });
 });
 
 // ---- Serve pages ----
-// Homepage
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
-// Chat interface
 app.get('/chat', (req, res) => {
   res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
-// Mount admin panel
-setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE);
+// Mount admin panel (pass extra arguments for identity change)
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames);
 
-// 404 handler – must be last
+// 404 handler
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
