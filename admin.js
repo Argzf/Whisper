@@ -42,7 +42,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             button:hover { background: #818cf8; }
             .delete-btn { background: #ef4444; padding: 0.25rem 0.75rem; }
             .delete-btn:hover { background: #dc2626; }
+            .purge-btn { background: #dc2626; padding: 0.5rem 1rem; margin-left: 1rem; }
+            .purge-btn:hover { background: #b91c1c; }
             .container { max-width: 1200px; margin: 0 auto; }
+            .admin-actions { display: flex; align-items: center; justify-content: flex-start; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
           </style>
         </head>
         <body>
@@ -81,15 +84,23 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                 </div>
               </div>
             </div>
-            <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
-            <form id="broadcastForm">
-              <input type="text" id="broadcastText" placeholder="System message to all users" required>
-              <button type="submit">Send Broadcast</button>
-            </form>
+            <div class="admin-actions">
+              <div>
+                <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
+                <form id="broadcastForm">
+                  <input type="text" id="broadcastText" placeholder="System message to all users" required>
+                  <button type="submit">Send Broadcast</button>
+                </form>
+              </div>
+              <div>
+                <h2 style="margin-top: 2rem;">⚠️ Danger Zone</h2>
+                <button id="purgeBtn" class="purge-btn">🗑️ Purge All Messages</button>
+              </div>
+            </div>
             <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
           </div>
           <script>
-            // Attach delete handlers
+            // Delete single message handlers
             document.querySelectorAll('.delete-btn').forEach(btn => {
               btn.addEventListener('click', async () => {
                 const msgId = btn.getAttribute('data-id');
@@ -106,6 +117,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               });
             });
 
+            // Broadcast form handler
             document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
               e.preventDefault();
               const text = document.getElementById('broadcastText').value.trim();
@@ -120,6 +132,19 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                 alert('Broadcast sent');
               } else {
                 alert('Broadcast failed');
+              }
+            });
+
+            // Purge all messages
+            document.getElementById('purgeBtn').addEventListener('click', async () => {
+              if (confirm('⚠️ This will delete ALL messages and permanently remove all uploaded files. This action cannot be undone. Are you absolutely sure?')) {
+                const res = await fetch('/admin/purge', { method: 'POST' });
+                if (res.ok) {
+                  alert('All messages purged.');
+                  location.reload(); // Reload to refresh the list
+                } else {
+                  alert('Purge failed.');
+                }
               }
             });
           </script>
@@ -184,22 +209,17 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
-  // Delete message endpoint – also deletes the associated file
+  // Delete single message (with file deletion)
   app.post('/admin/delete-message/:id', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const messageId = req.params.id;
     const index = messages.findIndex(m => m.id === messageId);
     if (index !== -1) {
       const msg = messages[index];
-      // Delete attached file if present
       if (msg.file && msg.file.url) {
         const filePath = path.join(__dirname, msg.file.url);
         fs.unlink(filePath, (err) => {
-          if (err && err.code !== 'ENOENT') {
-            console.error(`Failed to delete file ${filePath}:`, err);
-          } else if (!err) {
-            console.log(`🗑️ Deleted file: ${filePath}`);
-          }
+          if (err && err.code !== 'ENOENT') console.error(`Failed to delete file ${filePath}:`, err);
         });
       }
       messages.splice(index, 1);
@@ -209,6 +229,29 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     } else {
       res.status(404).send('Message not found');
     }
+  });
+
+  // Purge all messages and delete all uploaded files
+  app.post('/admin/purge', (req, res) => {
+    if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+    // Delete all files in uploads folder
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      for (const file of files) {
+        const filePath = path.join(uploadsDir, file);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error(`Failed to delete ${filePath}:`, err);
+        });
+      }
+      console.log(`🗑️ Deleted ${files.length} files from uploads folder`);
+    }
+    // Clear messages array
+    messages.length = 0;
+    // Notify all clients that messages have been purged
+    io.emit('system message', { text: '📢 Admin purged all messages.' });
+    console.log('🗑️ Admin purged all messages');
+    res.status(200).send('OK');
   });
 }
 
