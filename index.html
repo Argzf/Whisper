@@ -1,69 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>whisper · unique names</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      background: #0a0c10;
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .message-bubble {
-      word-break: break-word;
-      white-space: normal;
-    }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #1e1e2e; }
-    ::-webkit-scrollbar-thumb { background: #3b3b5c; border-radius: 10px; }
-    #messagesContainer {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-      -webkit-overflow-scrolling: touch;
-    }
-    .input-container {
-      flex-shrink: 0;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      background: rgba(0,0,0,0.3);
-      padding: 0.75rem;
-    }
-    .chat-header {
-      flex-shrink: 0;
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      padding: 0.75rem 1.25rem;
-    }
-  </style>
-</head>
-<body>
-  <div class="chat-header">
-    <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
-    <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
-  </div>
-
-  <div id="messagesContainer" class="space-y-2"></div>
-
-  <div class="input-container">
-    <div class="flex gap-2 max-w-3xl mx-auto">
-      <input type="text" id="messageInput" placeholder="type anything..." autocomplete="off"
-             class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white">
-      <button id="sendBtn" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition font-medium shadow-lg">send</button>
-    </div>
-  </div>
-
   <script>
     const socket = io();
     const messagesContainer = document.getElementById('messagesContainer');
@@ -74,34 +8,32 @@
     let isReady = false;
 
     let storedId = localStorage.getItem('whisper_user_id');
+    console.log('📦 LocalStorage whisper_user_id:', storedId);
+
     socket.emit('identify', storedId, (data) => {
-      console.log('Identity confirmed:', data.name);
+      console.log('✅ Identify response:', data);
       currentUserName = data.name;
-      if (!storedId) localStorage.setItem('whisper_user_id', data.userId);
+      if (!storedId) {
+        localStorage.setItem('whisper_user_id', data.userId);
+        console.log('💾 Saved new userId to localStorage:', data.userId);
+      } else {
+        console.log('♻️ Using existing userId:', data.userId);
+      }
       isReady = true;
       socket.emit('load history');
     });
 
-    // Function to refresh messages (fetch latest history)
     function refreshMessages() {
       if (!isReady) return;
-      console.log('Refreshing messages...');
       socket.emit('load history');
     }
 
-    // Auto-refresh when the page becomes visible again (user returns to tab)
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        refreshMessages();
-      }
+      if (!document.hidden) refreshMessages();
     });
 
-    // Auto-refresh when socket reconnects (e.g., after network drop)
     socket.on('connect', () => {
-      console.log('Socket reconnected, refreshing messages');
-      if (isReady) {
-        refreshMessages();
-      }
+      if (isReady) refreshMessages();
     });
 
     socket.on('load messages', (msgs) => {
@@ -119,7 +51,6 @@
       const isOwn = (msg.senderName === currentUserName);
       const div = document.createElement('div');
       div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`;
-
       if (!isOwn) {
         const avatarImg = document.createElement('img');
         avatarImg.src = msg.senderAvatar;
@@ -127,31 +58,24 @@
         avatarImg.alt = msg.senderName;
         div.appendChild(avatarImg);
       }
-
       const contentWrapper = document.createElement('div');
       contentWrapper.className = `max-w-[85%] sm:max-w-[32rem] ${isOwn ? 'text-right' : 'text-left'}`;
-
       if (!isOwn) {
         const nameSpan = document.createElement('div');
         nameSpan.className = 'text-xs text-gray-400 mb-0.5';
         nameSpan.innerText = msg.senderName;
         contentWrapper.appendChild(nameSpan);
       }
-
       const bubble = document.createElement('div');
       bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
       bubble.innerText = msg.text;
       contentWrapper.appendChild(bubble);
-
       if (!isOwn) {
         const timeSpan = document.createElement('div');
         timeSpan.className = 'text-[10px] mt-1 text-gray-500';
-        timeSpan.innerText = msg.timestamp
-          ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '';
+        timeSpan.innerText = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
         contentWrapper.appendChild(timeSpan);
       }
-
       div.appendChild(contentWrapper);
       messagesContainer.appendChild(div);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -171,5 +95,3 @@
       if (e.key === 'Enter') sendMessage();
     });
   </script>
-</body>
-</html>
