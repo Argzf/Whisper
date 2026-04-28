@@ -17,8 +17,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     if (isAuthenticated(req)) {
       const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
       const recentMessages = messages.slice(-50).reverse();
-      // Build HTML with embedded client script that uses safe string formatting
-      const dashboardHtml = `
+      res.send(`
         <!DOCTYPE html>
         <html>
         <head>
@@ -70,52 +69,49 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
           </div>
           <script>
-            // Client‑side script (no nested backticks)
-            (function() {
-              var deleteBtns = document.querySelectorAll('.delete-btn');
-              for (var i = 0; i < deleteBtns.length; i++) {
-                deleteBtns[i].addEventListener('click', function(e) {
-                  var msgId = this.getAttribute('data-id');
-                  if (!msgId) return;
-                  if (confirm('Delete this message?')) {
-                    fetch('/admin/delete-message/' + msgId, { method: 'POST' })
-                      .then(function(res) {
-                        if (res.ok) {
-                          var msgDiv = document.querySelector('.message-item[data-message-id=\"' + msgId + '\"]');
-                          if (msgDiv) msgDiv.remove();
-                        } else {
-                          alert('Delete failed');
-                        }
-                      });
+            // Delete message handlers
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+              btn.addEventListener('click', async (e) => {
+                const msgId = btn.getAttribute('data-id');
+                if (!msgId) return;
+                if (confirm('Delete this message?')) {
+                  const res = await fetch('/admin/delete-message/' + msgId, { method: 'POST' });
+                  if (res.ok) {
+                    const msgDiv = document.querySelector(\`.message-item[data-message-id="\${msgId}"]\`);
+                    if (msgDiv) msgDiv.remove();
+                  } else {
+                    alert('Delete failed');
                   }
+                }
+              });
+            });
+
+            // Broadcast form handler
+            const broadcastForm = document.getElementById('broadcastForm');
+            broadcastForm.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const text = document.getElementById('broadcastText').value.trim();
+              if (!text) return;
+              try {
+                const res = await fetch('/admin/broadcast', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: 'broadcastText=' + encodeURIComponent(text)
                 });
+                if (res.ok) {
+                  document.getElementById('broadcastText').value = '';
+                  alert('Broadcast sent');
+                } else {
+                  alert('Broadcast failed (response ' + res.status + ')');
+                }
+              } catch (err) {
+                alert('Broadcast failed: ' + err.message);
               }
-              var broadcastForm = document.getElementById('broadcastForm');
-              if (broadcastForm) {
-                broadcastForm.addEventListener('submit', function(e) {
-                  e.preventDefault();
-                  var text = document.getElementById('broadcastText').value.trim();
-                  if (!text) return;
-                  fetch('/admin/broadcast', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'broadcastText=' + encodeURIComponent(text)
-                  }).then(function(res) {
-                    if (res.ok) {
-                      document.getElementById('broadcastText').value = '';
-                      alert('Broadcast sent');
-                    } else {
-                      alert('Broadcast failed');
-                    }
-                  });
-                });
-              }
-            })();
+            });
           </script>
         </body>
         </html>
-      `;
-      res.send(dashboardHtml);
+      `);
     } else {
       res.send(`
         <!DOCTYPE html>
@@ -168,8 +164,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     if (broadcastText) {
       io.emit('system message', { text: `📢 ADMIN: ${broadcastText}` });
       console.log(`📢 Admin broadcast: ${broadcastText}`);
+      res.status(200).send('OK');
+    } else {
+      res.status(400).send('No message');
     }
-    res.redirect('/admin');
   });
 
   app.post('/admin/delete-message/:id', (req, res) => {
