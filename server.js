@@ -23,7 +23,6 @@ const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 
-// Initialize files if they don't exist
 if (!fs.existsSync(TAKEN_NAMES_FILE)) {
   fs.writeFileSync(TAKEN_NAMES_FILE, '[]');
   console.log('📄 Created takenNames.json');
@@ -54,9 +53,8 @@ function saveUserMappings() {
   fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
 }
 
-loadData(); // load once at startup
+loadData();
 
-// Names and avatars (unchanged)
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
 const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog', 'Grizzly', 'Bear', 'Cow', 'Lego', 'Brick'];
 const avatars = [
@@ -108,7 +106,16 @@ function generateUniqueName() {
 
 function getRandomAvatar() { return avatars[Math.floor(Math.random() * avatars.length)]; }
 
-// Discord sending functions (unchanged)
+// Helper to get real client IP (handles proxies)
+function getClientIP(socket) {
+  const req = socket.request;
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return socket.handshake.address;
+}
+
 async function sendToDiscord(name, avatar, text) {
   try {
     await fetch(WEBHOOK_URL, {
@@ -120,7 +127,7 @@ async function sendToDiscord(name, avatar, text) {
   } catch (err) { console.error('Discord webhook failed', err); }
 }
 
-async function sendJoinLog(name, avatar, userId) {
+async function sendJoinLog(name, avatar, userId, ip) {
   if (!LOG_WEBHOOK_URL) return;
   const embed = {
     title: '🚪 User joined the chat',
@@ -128,8 +135,9 @@ async function sendJoinLog(name, avatar, userId) {
     thumbnail: { url: avatar },
     fields: [
       { name: 'Username', value: name, inline: true },
-      { name: 'Avatar URL', value: `[link](${avatar})`, inline: true },
-      { name: 'User ID', value: `\`${userId}\``, inline: false }
+      { name: 'User ID', value: `\`${userId}\``, inline: false },
+      { name: 'IP Address', value: `[${ip}](https://whatismyipaddress.com/ip/${ip})`, inline: false },
+      { name: 'Avatar URL', value: `[link](${avatar})`, inline: true }
     ],
     timestamp: new Date().toISOString(),
     footer: { text: 'Whisper Room' }
@@ -140,13 +148,12 @@ async function sendJoinLog(name, avatar, userId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] })
     });
-    console.log(`📢 Join log sent for ${name}`);
+    console.log(`📢 Join log sent for ${name} (IP: ${ip})`);
   } catch (err) { console.error('Join log failed', err); }
 }
 
 let messages = [];
 
-// Debug endpoint to inspect current mappings (optional, not needed for production)
 app.get('/debug/mappings', (req, res) => {
   res.json(userMappings);
 });
@@ -155,8 +162,8 @@ io.on('connection', (socket) => {
   console.log('🔌 New connection');
 
   socket.on('identify', (storedUserId, callback) => {
-    console.log(`🆔 Identify called with storedUserId = ${storedUserId}`);
-    console.log(`📋 Current userMappings keys: ${Object.keys(userMappings).join(', ') || '(none)'}`);
+    const clientIP = getClientIP(socket);
+    console.log(`🆔 Identify called with storedUserId = ${storedUserId} (IP: ${clientIP})`);
 
     let userId = storedUserId;
     let name, avatar;
@@ -174,11 +181,10 @@ io.on('connection', (socket) => {
       userMappings[userId] = { name, avatar };
       saveUserMappings();
       console.log(`🆕 Created new user: ${name} (${userId})`);
-      console.log(`💾 Saved mapping, now ${Object.keys(userMappings).length} total users.`);
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
-    sendJoinLog(name, avatar, userId);
+    sendJoinLog(name, avatar, userId, clientIP);
   });
 
   socket.on('load history', () => {
