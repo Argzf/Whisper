@@ -39,7 +39,7 @@
       overflow: hidden;
     }
 
-    /* ========== NEW CUSTOM HEADER STYLES ========== */
+    /* Custom header styles */
     .chat-header {
       background: transparent;
       backdrop-filter: none;
@@ -110,7 +110,7 @@
       .tagline { font-size: 0.65rem; }
     }
 
-    /* ========== EXISTING CHAT STYLES (unchanged) ========== */
+    /* Chat styles */
     #messagesContainer {
       flex: 1;
       overflow-y: auto;
@@ -180,7 +180,6 @@
   </style>
 </head>
 <body>
-  <!-- NEW HEADER (glass banner with logo + Montserrat Alternates) -->
   <div class="chat-header">
     <div class="whisper-banner">
       <div class="banner-container">
@@ -197,10 +196,8 @@
     </div>
   </div>
 
-  <!-- MESSAGES CONTAINER -->
   <div id="messagesContainer" class="space-y-2"></div>
 
-  <!-- INPUT AREA -->
   <div class="input-container">
     <div class="flex gap-2 max-w-3xl mx-auto">
       <button id="emojiBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">😊</button>
@@ -218,7 +215,7 @@
     </div>
   </div>
 
-  <!-- PROGRESS BAR CONTAINER (hidden by default) -->
+  <!-- Progress bar container (hidden by default) -->
   <div id="uploadProgressContainer" class="hidden fixed bottom-24 left-4 right-4 bg-gray-800/90 backdrop-blur-sm rounded-xl p-3 shadow-lg z-50 max-w-md mx-auto">
     <div class="flex justify-between items-center mb-2">
       <span class="text-sm text-white">Uploading...</span>
@@ -374,6 +371,14 @@
     socket.on('message deleted', (data) => {
       const msgDiv = document.querySelector(`[data-message-id="${data.id}"]`);
       if (msgDiv) msgDiv.remove();
+    });
+
+    // ===== NEW: Identity change listener =====
+    socket.on('force-reload-identity', (data) => {
+      if (data.userId === localStorage.getItem('whisper_user_id')) {
+        console.log('🔄 Identity changed by admin, reloading chat...');
+        window.location.reload();
+      }
     });
 
     function appendMessage(msg) {
