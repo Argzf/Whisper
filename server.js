@@ -11,14 +11,12 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(path.join(__dirname)));
 
-// Webhook for chat messages (required)
+// Webhooks
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 if (!WEBHOOK_URL) {
   console.error('❌ Missing DISCORD_WEBHOOK_URL in .env');
   process.exit(1);
 }
-
-// Webhook for join logs (optional – if missing, logging is skipped)
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 
 // Persistent storage
@@ -33,14 +31,26 @@ function loadData() {
     if (fs.existsSync(TAKEN_NAMES_FILE)) {
       const arr = JSON.parse(fs.readFileSync(TAKEN_NAMES_FILE, 'utf8'));
       takenNames = new Set(arr);
+      console.log(`✅ Loaded ${takenNames.size} taken names`);
+    } else {
+      console.log('⚠️ takenNames.json not found, starting fresh');
     }
     if (fs.existsSync(USER_MAPPINGS_FILE)) {
       userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
+      console.log(`✅ Loaded ${Object.keys(userMappings).length} user mappings`);
+    } else {
+      console.log('⚠️ userMappings.json not found, starting fresh');
     }
   } catch (e) { console.error('Failed to load data', e); }
 }
-function saveTakenNames() { fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2)); }
-function saveUserMappings() { fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2)); }
+function saveTakenNames() {
+  fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2));
+  console.log(`💾 Saved ${takenNames.size} taken names`);
+}
+function saveUserMappings() {
+  fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
+  console.log(`💾 Saved ${Object.keys(userMappings).length} user mappings`);
+}
 loadData();
 
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
@@ -82,7 +92,6 @@ function getRandomAvatar() {
   return avatars[Math.floor(Math.random() * avatars.length)];
 }
 
-// --- Send chat message to Discord (main webhook) ---
 async function sendToDiscord(name, avatar, text) {
   try {
     await fetch(WEBHOOK_URL, {
@@ -96,13 +105,8 @@ async function sendToDiscord(name, avatar, text) {
   }
 }
 
-// --- Send join log to Discord (separate webhook, no cooldown) ---
 async function sendJoinLog(name, avatar, userId) {
-  if (!LOG_WEBHOOK_URL) {
-    console.log('No log webhook set – skipping join log');
-    return;
-  }
-
+  if (!LOG_WEBHOOK_URL) return;
   const embed = {
     title: '🚪 User joined the chat',
     color: 0x5865F2,
@@ -115,26 +119,25 @@ async function sendJoinLog(name, avatar, userId) {
     timestamp: new Date().toISOString(),
     footer: { text: 'Whisper Room' }
   };
-
   try {
     await fetch(LOG_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] })
     });
-    console.log(`📢 Join log sent to Discord for ${name}`);
+    console.log(`📢 Join log sent for ${name}`);
   } catch (err) {
-    console.error('Failed to send join log', err);
+    console.error('Join log failed', err);
   }
 }
 
-// Store messages with full sender info
-let messages = []; // { text, timestamp, senderName, senderAvatar }
+let messages = [];
 
 io.on('connection', (socket) => {
-  console.log('a user connected');
+  console.log('🔌 New socket connection');
 
   socket.on('identify', (storedUserId, callback) => {
+    console.log(`🆔 Identify called with storedUserId: ${storedUserId}`);
     let userId = storedUserId;
     let name, avatar;
 
@@ -143,19 +146,17 @@ io.on('connection', (socket) => {
       name = identity.name;
       avatar = identity.avatar;
       userId = storedUserId;
-      console.log(`Returning user: ${name} (${userId})`);
+      console.log(`✅ Returning existing user: ${name} (${userId})`);
     } else {
       userId = crypto.randomUUID();
       name = generateUniqueName();
       avatar = getRandomAvatar();
       userMappings[userId] = { name, avatar };
       saveUserMappings();
-      console.log(`New user: ${name} (${userId})`);
+      console.log(`🆕 Created new user: ${name} (${userId})`);
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
-
-    // 🔔 Send join log (no cooldown, separate webhook)
     sendJoinLog(name, avatar, userId);
   });
 
@@ -179,7 +180,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('user disconnected');
+    console.log('🔌 Socket disconnected');
   });
 });
 
