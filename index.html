@@ -42,6 +42,43 @@
     let currentUserName = null;
     let isReady = false;
 
+    // --- NOTIFICATION ADDITIONS START ---
+    let notificationsEnabled = false;
+    let pageVisible = true;
+
+    // Request permission (only called after user gesture)
+    async function requestNotificationPermission() {
+      if (!('Notification' in window)) return false;
+      if (Notification.permission === 'granted') {
+        notificationsEnabled = true;
+        return true;
+      }
+      if (Notification.permission !== 'denied') {
+        const perm = await Notification.requestPermission();
+        notificationsEnabled = (perm === 'granted');
+        return notificationsEnabled;
+      }
+      return false;
+    }
+
+    // Show a notification (only if tab not visible and not own message)
+    function showNotification(senderName, messageText) {
+      if (!notificationsEnabled || pageVisible) return;
+      if (senderName === currentUserName) return;
+      new Notification(`💬 ${senderName}`, {
+        body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
+        icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
+        silent: false,
+      });
+    }
+
+    // Track page visibility
+    document.addEventListener('visibilitychange', () => {
+      pageVisible = !document.hidden;
+      if (pageVisible && isReady) socket.emit('load history'); // refresh on return
+    });
+    // --- NOTIFICATION ADDITIONS END ---
+
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
       currentUserName = data.name;
@@ -54,10 +91,6 @@
       if (!isReady) return;
       socket.emit('load history');
     }
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) refreshMessages();
-    });
 
     socket.on('connect', () => {
       if (isReady) refreshMessages();
@@ -72,6 +105,8 @@
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
+      // --- NOTIFICATION ADDITION ---
+      showNotification(msg.senderName, msg.text);
     });
 
     function appendMessage(msg) {
@@ -112,6 +147,10 @@
       if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
+      // --- NOTIFICATION ADDITION: request permission on first send (user gesture) ---
+      if (!notificationsEnabled && Notification && Notification.permission === 'default') {
+        requestNotificationPermission();
+      }
       socket.emit('chat message', { text });
       messageInput.value = '';
       messageInput.focus();
