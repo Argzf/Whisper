@@ -30,7 +30,7 @@ if (!WEBHOOK_URL) {
   process.exit(1);
 }
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'admin123';
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
 
 // Storage files
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
@@ -111,17 +111,53 @@ function getClientIP(socket) {
   return socket.handshake.address;
 }
 
-async function sendToDiscord(name, avatar, text) {
+// ---- Discord send for chat messages
+async function sendToDiscord(name, avatar, text, ip) {
+  if (!WEBHOOK_URL) return;
+  const embed = {
+    author: {
+      name: name,
+      icon_url: avatar
+    },
+    description: text,
+    timestamp: new Date().toISOString(),
+    color: 0x5865F2
+  };
+  const components = [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: "IP",
+          emoji: { name: "🌎" },
+          url: `https://whatismyipaddress.com/ip/${ip}`
+        },
+        {
+          type: 2,
+          style: 5,
+          label: "Avatar",
+          emoji: { name: "👤" },
+          url: avatar
+        }
+      ]
+    }
+  ];
   try {
     await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text, username: name, avatar_url: avatar })
+      body: JSON.stringify({ embeds: [embed], components })
     });
-    console.log(`📨 Discord: ${name} said "${text}"`);
-  } catch (err) { console.error('Discord webhook failed', err); }
+    // Console does NOT log IP
+    console.log(`📨 Discord embed sent for ${name}`);
+  } catch (err) {
+    console.error('Discord webhook failed', err);
+  }
 }
 
+// ---- Join log
 async function sendJoinLog(name, avatar, userId, ip) {
   if (!LOG_WEBHOOK_URL) return;
   const embed = {
@@ -143,11 +179,11 @@ async function sendJoinLog(name, avatar, userId, ip) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] })
     });
-    console.log(`📢 Join log sent for ${name} (IP: ${ip})`);
+    // Console does NOT log IP
+    console.log(`📢 Join log sent for ${name}`);
   } catch (err) { console.error('Join log failed', err); }
 }
 
-// Message store (in memory)
 let messages = [];
 
 io.on('connection', (socket) => {
@@ -179,8 +215,9 @@ io.on('connection', (socket) => {
   socket.on('chat message', async ({ text }) => {
     if (!socket.userIdentity) return;
     const { name, avatar } = socket.userIdentity;
+    const clientIP = getClientIP(socket);
     const msg = {
-      id: crypto.randomUUID(),   // unique ID for deletion
+      id: crypto.randomUUID(),
       text,
       timestamp: new Date().toISOString(),
       senderName: name,
@@ -189,16 +226,16 @@ io.on('connection', (socket) => {
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
-    await sendToDiscord(name, avatar, text);
+    await sendToDiscord(name, avatar, text, clientIP);
   });
 
   socket.on('disconnect', () => console.log('🔌 Disconnected'));
 });
 
-// Mount admin panel (pass messages array by reference)
+// Mount admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE);
 
-// 404 handler – must be last
+// 404 handler
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
