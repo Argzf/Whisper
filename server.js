@@ -159,7 +159,7 @@ function getClientIP(socket) {
   return socket.handshake.address;
 }
 
-// ---- Discord send for chat messages (embed with absolute URLs) ----
+// ---- Discord send for chat messages (embed with absolute URLs + error logging) ----
 async function sendToDiscord(name, avatar, text, ip, file = null) {
   if (!WEBHOOK_URL) return;
   const embed = {
@@ -180,13 +180,20 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
   embed.description = description;
 
   try {
-    await fetch(WEBHOOK_URL, {
+    const response = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] })
     });
-    console.log(`📨 Discord embed sent for ${name}`);
-  } catch (err) { console.error('Discord webhook failed', err); }
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Discord webhook returned ${response.status}: ${errorText.substring(0, 500)}`);
+    } else {
+      console.log(`📨 Discord embed sent for ${name}`);
+    }
+  } catch (err) {
+    console.error('Discord webhook failed:', err.message);
+  }
 }
 
 // ---- Join log (unchanged) ----
@@ -216,9 +223,7 @@ async function sendJoinLog(name, avatar, userId, ip) {
 }
 
 let messages = [];
-
-// ---- Socket to user ID mapping (for identity change broadcast) ----
-let userSocketMap = new Map(); // socketId -> userId
+let userSocketMap = new Map();
 
 io.on('connection', (socket) => {
   console.log('🔌 New connection');
@@ -238,7 +243,7 @@ io.on('connection', (socket) => {
       saveUserMappings();
     }
     socket.userIdentity = { name, avatar, userId };
-    userSocketMap.set(socket.id, userId); // store mapping
+    userSocketMap.set(socket.id, userId);
     callback({ userId, name, avatar });
     sendJoinLog(name, avatar, userId, clientIP);
   });
@@ -271,7 +276,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// ---- Serve pages ----
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -279,10 +283,8 @@ app.get('/chat', (req, res) => {
   res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
-// Mount admin panel (pass extra arguments for identity change)
-setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames);
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings);
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
