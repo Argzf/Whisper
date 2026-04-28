@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <meta name="theme-color" content="#475569">
+  <meta name="theme-color" content="#1e293b">
 
   <!-- Primary Meta Tags -->
   <title>Whisper</title>
@@ -31,14 +31,96 @@
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0a0c10; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-    .message-bubble { word-break: break-word; white-space: normal; }
+    
+    /* Darker gradient background – less bright */
+    body {
+      background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    /* Header – subtle blur, low opacity */
+    .chat-header {
+      background: rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 0.75rem 1.25rem;
+      flex-shrink: 0;
+    }
+    
+    /* Messages container – fully transparent, lets gradient through */
+    #messagesContainer {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Bubbles – glass effect with opacity */
+    .message:not(.own) .message-bubble {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(4px);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .own .message-bubble {
+      background: rgba(99, 102, 241, 0.8);
+      backdrop-filter: blur(4px);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .message-bubble {
+      word-break: break-word;
+      white-space: normal;
+      transition: all 0.1s ease;
+    }
+    
+    /* Scrollbar – using indigo */
     ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #1e1e2e; }
-    ::-webkit-scrollbar-thumb { background: #3b3b5c; border-radius: 10px; }
-    #messagesContainer { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; }
-    .input-container { flex-shrink: 0; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); padding: 0.75rem; }
-    .chat-header { flex-shrink: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1.25rem; }
+    ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: #818CF8; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #A5B4FC; }
+    
+    /* Input container – very light glass */
+    .input-container {
+      background: rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 0.75rem;
+      flex-shrink: 0;
+    }
+    
+    /* Input field – semi‑transparent dark */
+    input {
+      background: rgba(0, 0, 0, 0.5) !important;
+      border-color: rgba(255, 255, 255, 0.2) !important;
+      color: white !important;
+    }
+    input:focus {
+      outline: none;
+      ring: 2px solid #A5B4FC;
+      border-color: #A5B4FC !important;
+    }
+    
+    /* Send button gradient (slightly darker to match) */
+    .send-btn {
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      transition: all 0.2s;
+    }
+    .send-btn:hover {
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      transform: scale(0.98);
+    }
+    
+    /* Fix text colors for names/timestamps */
+    .text-gray-400 { color: #cbd5e1 !important; }
+    .text-gray-500 { color: #94a3b8 !important; }
+    .text-gray-300 { color: #e2e8f0 !important; }
+    .text-white { color: #ffffff !important; }
   </style>
 </head>
 <body>
@@ -50,8 +132,8 @@
   <div class="input-container">
     <div class="flex gap-2 max-w-3xl mx-auto">
       <input type="text" id="messageInput" placeholder="type anything..." autocomplete="off"
-             class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white">
-      <button id="sendBtn" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition font-medium shadow-lg">send</button>
+             class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-white">
+      <button id="sendBtn" class="send-btn px-6 py-3 rounded-xl font-medium shadow-lg">send</button>
     </div>
   </div>
 
