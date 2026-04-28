@@ -29,6 +29,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             body { font-family: system-ui; background: #0a0c10; color: #eee; margin: 0; padding: 2rem; }
             h1, h2 { color: #818cf8; }
             .message-item { background: #2d3748; padding: 0.5rem; border-radius: 12px; margin: 0.25rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+            .message-content { flex: 1; }
+            .file-preview { margin: 0.25rem 0 0 0; display: inline-block; background: #1e293b; border-radius: 8px; padding: 0.25rem 0.5rem; }
+            .file-preview img { max-width: 60px; max-height: 60px; border-radius: 6px; vertical-align: middle; margin-right: 0.5rem; }
+            .file-preview a { color: #818cf8; text-decoration: none; }
+            .file-preview a:hover { text-decoration: underline; }
             input, button { padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
             input { background: #2d3748; color: white; width: 100%; }
             button { background: #6366f1; color: white; cursor: pointer; }
@@ -45,12 +50,25 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               <div style="flex: 2;">
                 <h2>📨 Recent Messages (last 50)</h2>
                 <div id="messageList" style="max-height: 400px; overflow-y: auto;">
-                  ${recentMessages.map(m => `
-                    <div class="message-item" data-message-id="${m.id}">
-                      <div><strong>${escapeHtml(m.senderName)}</strong> (${new Date(m.timestamp).toLocaleString()}): ${escapeHtml(m.text)}</div>
-                      <button class="delete-btn" data-id="${m.id}">Delete</button>
-                    </div>
-                  `).join('')}
+                  ${recentMessages.map(m => {
+                    let fileHtml = '';
+                    if (m.file) {
+                      if (m.file.type && m.file.type.startsWith('image/')) {
+                        fileHtml = `<div class="file-preview"><img src="${m.file.url}" alt="thumbnail"> <a href="${m.file.url}" target="_blank">${escapeHtml(m.file.name)}</a></div>`;
+                      } else {
+                        fileHtml = `<div class="file-preview">📎 <a href="${m.file.url}" target="_blank">${escapeHtml(m.file.name)}</a></div>`;
+                      }
+                    }
+                    return `
+                      <div class="message-item" data-message-id="${m.id}">
+                        <div class="message-content">
+                          <div><strong>${escapeHtml(m.senderName)}</strong> (${new Date(m.timestamp).toLocaleString()}): ${escapeHtml(m.text || '')}</div>
+                          ${fileHtml}
+                        </div>
+                        <button class="delete-btn" data-id="${m.id}">Delete</button>
+                      </div>
+                    `;
+                  }).join('')}
                   ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : ''}
                 </div>
               </div>
@@ -69,15 +87,15 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
           </div>
           <script>
-            // Delete message handlers
+            // Delete handlers will be attached after DOM loads
             document.querySelectorAll('.delete-btn').forEach(btn => {
-              btn.addEventListener('click', async (e) => {
+              btn.addEventListener('click', async () => {
                 const msgId = btn.getAttribute('data-id');
                 if (!msgId) return;
-                if (confirm('Delete this message?')) {
+                if (confirm('Delete this message? This will also delete any attached file.')) {
                   const res = await fetch('/admin/delete-message/' + msgId, { method: 'POST' });
                   if (res.ok) {
-                    const msgDiv = document.querySelector(\`.message-item[data-message-id="\${msgId}"]\`);
+                    const msgDiv = btn.closest('.message-item');
                     if (msgDiv) msgDiv.remove();
                   } else {
                     alert('Delete failed');
@@ -86,26 +104,20 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               });
             });
 
-            // Broadcast form handler
-            const broadcastForm = document.getElementById('broadcastForm');
-            broadcastForm.addEventListener('submit', async (e) => {
+            document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
               e.preventDefault();
               const text = document.getElementById('broadcastText').value.trim();
               if (!text) return;
-              try {
-                const res = await fetch('/admin/broadcast', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                  body: 'broadcastText=' + encodeURIComponent(text)
-                });
-                if (res.ok) {
-                  document.getElementById('broadcastText').value = '';
-                  alert('Broadcast sent');
-                } else {
-                  alert('Broadcast failed (response ' + res.status + ')');
-                }
-              } catch (err) {
-                alert('Broadcast failed: ' + err.message);
+              const res = await fetch('/admin/broadcast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'broadcastText=' + encodeURIComponent(text)
+              });
+              if (res.ok) {
+                document.getElementById('broadcastText').value = '';
+                alert('Broadcast sent');
+              } else {
+                alert('Broadcast failed');
               }
             });
           </script>
@@ -170,11 +182,21 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
+  // Delete message endpoint – also deletes the associated file
   app.post('/admin/delete-message/:id', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const messageId = req.params.id;
     const index = messages.findIndex(m => m.id === messageId);
     if (index !== -1) {
+      const msg = messages[index];
+      // Delete attached file if present
+      if (msg.file && msg.file.url) {
+        const filePath = path.join(__dirname, msg.file.url);
+        fs.unlink(filePath, (err) => {
+          if (err) console.error(`Failed to delete file ${filePath}:`, err);
+          else console.log(`🗑️ Deleted file: ${filePath}`);
+        });
+      }
       messages.splice(index, 1);
       io.emit('message deleted', { id: messageId });
       console.log(`🗑️ Admin deleted message ${messageId}`);
