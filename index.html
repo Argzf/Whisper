@@ -38,54 +38,38 @@
     const sendBtn = document.getElementById('sendBtn');
 
     let currentUserName = null;
-    let currentUserAvatar = null;
     let isReady = false;
 
-    // Get stored user ID from localStorage
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
-      console.log('Identity confirmed:', data);
+      console.log('Identity confirmed:', data.name);
       currentUserName = data.name;
-      currentUserAvatar = data.avatar;
       if (!storedId) localStorage.setItem('whisper_user_id', data.userId);
-      
-      // Now we can load history and start receiving messages
       isReady = true;
       socket.emit('load history');
     });
 
-    // Load message history – only after identification
     socket.on('load messages', (msgs) => {
       if (!isReady) return;
       messagesContainer.innerHTML = '';
-      msgs.forEach(msg => {
-        if (msg.senderName && msg.senderAvatar) {
-          appendMessage(msg.text, msg.timestamp, msg.senderName, msg.senderAvatar);
-        } else {
-          console.warn('Skipping malformed message', msg);
-        }
-      });
+      msgs.forEach(msg => appendMessage(msg));
     });
 
-    // New message from anyone
     socket.on('chat message', (msg) => {
       if (!isReady) return;
-      if (msg.senderName && msg.senderAvatar) {
-        appendMessage(msg.text, msg.timestamp, msg.senderName, msg.senderAvatar);
-      }
+      appendMessage(msg);
     });
 
-    function appendMessage(text, timestamp, senderName, senderAvatar) {
-      const isOwn = (senderName === currentUserName);
+    function appendMessage(msg) {
+      const isOwn = (msg.senderName === currentUserName);
       const div = document.createElement('div');
       div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`;
 
       if (!isOwn) {
-        // Others: show avatar on left
         const avatarImg = document.createElement('img');
-        avatarImg.src = senderAvatar;
+        avatarImg.src = msg.senderAvatar;
         avatarImg.className = 'w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1';
-        avatarImg.alt = senderName;
+        avatarImg.alt = msg.senderName;
         div.appendChild(avatarImg);
       }
 
@@ -95,20 +79,20 @@
       if (!isOwn) {
         const nameSpan = document.createElement('div');
         nameSpan.className = 'text-xs text-gray-400 mb-0.5';
-        nameSpan.innerText = senderName;
+        nameSpan.innerText = msg.senderName;
         contentWrapper.appendChild(nameSpan);
       }
 
       const bubble = document.createElement('div');
       bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
-      bubble.innerText = text;
+      bubble.innerText = msg.text;
       contentWrapper.appendChild(bubble);
 
       if (!isOwn) {
         const timeSpan = document.createElement('div');
         timeSpan.className = 'text-[10px] mt-1 text-gray-500';
-        timeSpan.innerText = timestamp
-          ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timeSpan.innerText = msg.timestamp
+          ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           : '';
         contentWrapper.appendChild(timeSpan);
       }
@@ -119,10 +103,7 @@
     }
 
     function sendMessage() {
-      if (!isReady) {
-        console.warn('Not ready yet – please wait a moment');
-        return;
-      }
+      if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
       socket.emit('chat message', { text });
