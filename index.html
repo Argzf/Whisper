@@ -3,104 +3,109 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>contact · discord relay</title>
+  <title>anonymous · whisper room</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
     body {
-      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      background: #0a0c10;
     }
-    .glass {
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    .message-bubble {
+      word-wrap: break-word;
+      white-space: normal;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e1e2e;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #3b3b5c;
+      border-radius: 10px;
     }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-  <div class="max-w-md w-full glass rounded-2xl p-8 shadow-2xl">
-    <div class="text-center mb-6">
-      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-500/20 mb-3">
-        <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-        </svg>
-      </div>
-      <h1 class="text-2xl font-bold text-white">send a message</h1>
-      <p class="text-gray-400 text-sm mt-1">it goes straight to my Discord</p>
-    </div>
+<body class="bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white flex flex-col h-screen">
 
-    <form id="contactForm" class="space-y-4">
-      <div>
-        <input type="text" id="username" placeholder="your name (optional)" 
-               class="w-full px-4 py-3 rounded-xl bg-black/30 border border-white/10 focus:border-indigo-500 focus:outline-none text-white placeholder-gray-500">
-      </div>
-      <div>
-        <textarea id="message" rows="4" placeholder="what's on your mind?" 
-                  class="w-full px-4 py-3 rounded-xl bg-black/30 border border-white/10 focus:border-indigo-500 focus:outline-none text-white placeholder-gray-500 resize-none"></textarea>
-      </div>
-      <button type="submit" id="submitBtn"
-              class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 py-3 rounded-xl font-medium text-white transition shadow-lg">
-        send message →
+  <!-- header -->
+  <div class="bg-black/40 backdrop-blur-sm border-b border-white/10 px-5 py-3">
+    <h1 class="text-lg font-semibold tracking-wide">✧ whisper room ✧</h1>
+    <p class="text-xs text-gray-400">messages appear here – your identity is never shown</p>
+  </div>
+
+  <!-- messages container -->
+  <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+
+  <!-- input area -->
+  <div class="border-t border-white/10 bg-black/30 p-3">
+    <div class="flex gap-2 max-w-3xl mx-auto">
+      <input type="text" id="messageInput" placeholder="type anything..." 
+             class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white">
+      <button id="sendBtn" 
+              class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition font-medium shadow-lg">
+        send
       </button>
-      <div id="statusMessage" class="text-sm text-center mt-2"></div>
-    </form>
+    </div>
   </div>
 
   <script>
-    const form = document.getElementById('contactForm');
-    const usernameInput = document.getElementById('username');
-    const messageInput = document.getElementById('message');
-    const submitBtn = document.getElementById('submitBtn');
-    const statusDiv = document.getElementById('statusMessage');
-    let cooldownActive = false;
+    const socket = io();
+    const messagesContainer = document.getElementById('messagesContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
 
-    function setStatus(text, isError = false) {
-      statusDiv.textContent = text;
-      statusDiv.className = `text-sm text-center mt-2 ${isError ? 'text-red-400' : 'text-emerald-400'}`;
-      if (!isError) {
-        setTimeout(() => { if (statusDiv.textContent === text) statusDiv.textContent = ''; }, 4000);
-      }
+    // Helper: format time
+    function formatTime(iso) {
+      if (!iso) return '';
+      const date = new Date(iso);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const message = messageInput.value.trim();
-      if (!message) {
-        setStatus('✗ please write a message', true);
-        return;
-      }
-      if (cooldownActive) {
-        setStatus('⏳ please wait a few seconds before sending again', true);
-        return;
-      }
+    // Append a message to the DOM (text only, no name/avatar)
+    function appendMessage(text, timestamp, isOwn = false) {
+      const div = document.createElement('div');
+      div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'}`;
+      
+      const bubble = document.createElement('div');
+      bubble.className = `px-4 py-2 rounded-2xl max-w-[75%] ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
+      bubble.innerText = text;
+      
+      const timeSpan = document.createElement('div');
+      timeSpan.className = `text-[10px] mt-1 ${isOwn ? 'text-right text-gray-400' : 'text-left text-gray-500'}`;
+      timeSpan.innerText = formatTime(timestamp);
+      
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(bubble);
+      wrapper.appendChild(timeSpan);
+      div.appendChild(wrapper);
+      
+      messagesContainer.appendChild(div);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'sending ...';
+    // Load message history
+    socket.on('load messages', (msgs) => {
+      messagesContainer.innerHTML = '';
+      msgs.forEach(msg => appendMessage(msg.text, msg.timestamp));
+    });
 
-      try {
-        const res = await fetch('/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: usernameInput.value.trim(),
-            message: message
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setStatus('✓ message sent!');
-          messageInput.value = '';
-          usernameInput.value = '';
-          cooldownActive = true;
-          setTimeout(() => { cooldownActive = false; }, 10000);
-        } else {
-          setStatus(data.error || '✗ failed to send', true);
-        }
-      } catch (err) {
-        setStatus('✗ network error', true);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'send message →';
-      }
+    // New message from server
+    socket.on('chat message', (msg) => {
+      appendMessage(msg.text, msg.timestamp);
+    });
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text) return;
+      socket.emit('chat message', { text });
+      messageInput.value = '';
+      messageInput.focus();
+    }
+
+    sendBtn.onclick = sendMessage;
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
     });
   </script>
 </body>
