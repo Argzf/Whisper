@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session (for admin)
+// Session for admin
 app.use(session({
   secret: crypto.randomUUID(),
   resave: false,
@@ -147,9 +147,8 @@ async function sendJoinLog(name, avatar, userId, ip) {
   } catch (err) { console.error('Join log failed', err); }
 }
 
+// Message store (in memory)
 let messages = [];
-
-app.get('/debug/mappings', (req, res) => { res.json(userMappings); });
 
 io.on('connection', (socket) => {
   console.log('🔌 New connection');
@@ -172,21 +171,37 @@ io.on('connection', (socket) => {
     callback({ userId, name, avatar });
     sendJoinLog(name, avatar, userId, clientIP);
   });
-  socket.on('load history', () => socket.emit('load messages', messages));
+
+  socket.on('load history', () => {
+    socket.emit('load messages', messages);
+  });
+
   socket.on('chat message', async ({ text }) => {
     if (!socket.userIdentity) return;
     const { name, avatar } = socket.userIdentity;
-    const msg = { text, timestamp: new Date().toISOString(), senderName: name, senderAvatar: avatar };
+    const msg = {
+      id: crypto.randomUUID(),   // unique ID for deletion
+      text,
+      timestamp: new Date().toISOString(),
+      senderName: name,
+      senderAvatar: avatar
+    };
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
     await sendToDiscord(name, avatar, text);
   });
+
   socket.on('disconnect', () => console.log('🔌 Disconnected'));
 });
 
-// Mount admin panel
+// Mount admin panel (pass messages array by reference)
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE);
+
+// 404 handler – must be last
+app.use((req, res) => {
+  res.status(404).sendFile(path.join(__dirname, '404.html'));
+});
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
