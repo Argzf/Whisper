@@ -20,7 +20,7 @@
 <body class="bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white flex flex-col h-screen">
   <div class="bg-black/40 backdrop-blur-sm border-b border-white/10 px-5 py-3">
     <h1 class="text-lg font-semibold tracking-wide">✧ whisper room ✧</h1>
-    <p class="text-xs text-gray-400">your name and avatar appear here – they are unique and permanent</p>
+    <p class="text-xs text-gray-400">your messages appear on the right – others see your name and avatar</p>
   </div>
   <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
   <div class="border-t border-white/10 bg-black/30 p-3">
@@ -37,63 +37,92 @@
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
 
+    let currentUserName = null;
+    let currentUserAvatar = null;
+    let isReady = false;
+
+    // Get stored user ID from localStorage
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
-      console.log('Identity confirmed:', data.name);
+      console.log('Identity confirmed:', data);
+      currentUserName = data.name;
+      currentUserAvatar = data.avatar;
       if (!storedId) localStorage.setItem('whisper_user_id', data.userId);
+      
+      // Now we can load history and start receiving messages
+      isReady = true;
+      socket.emit('load history');
     });
 
-    socket.emit('load history');
+    // Load message history – only after identification
     socket.on('load messages', (msgs) => {
+      if (!isReady) return;
       messagesContainer.innerHTML = '';
-      msgs.forEach(msg => appendMessage(msg.text, msg.timestamp, msg.senderName, msg.senderAvatar));
+      msgs.forEach(msg => {
+        if (msg.senderName && msg.senderAvatar) {
+          appendMessage(msg.text, msg.timestamp, msg.senderName, msg.senderAvatar);
+        } else {
+          console.warn('Skipping malformed message', msg);
+        }
+      });
     });
 
+    // New message from anyone
     socket.on('chat message', (msg) => {
-      appendMessage(msg.text, msg.timestamp, msg.senderName, msg.senderAvatar);
+      if (!isReady) return;
+      if (msg.senderName && msg.senderAvatar) {
+        appendMessage(msg.text, msg.timestamp, msg.senderName, msg.senderAvatar);
+      }
     });
 
     function appendMessage(text, timestamp, senderName, senderAvatar) {
+      const isOwn = (senderName === currentUserName);
       const div = document.createElement('div');
-      div.className = 'flex justify-start items-start gap-3';
+      div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`;
 
-      // Avatar
-      const avatarImg = document.createElement('img');
-      avatarImg.src = senderAvatar;
-      avatarImg.className = 'w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1';
-      avatarImg.alt = senderName;
+      if (!isOwn) {
+        // Others: show avatar on left
+        const avatarImg = document.createElement('img');
+        avatarImg.src = senderAvatar;
+        avatarImg.className = 'w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1';
+        avatarImg.alt = senderName;
+        div.appendChild(avatarImg);
+      }
 
-      // Message content wrapper
       const contentWrapper = document.createElement('div');
-      contentWrapper.className = 'max-w-[85%] sm:max-w-[32rem]';
+      contentWrapper.className = `max-w-[85%] sm:max-w-[32rem] ${isOwn ? 'text-right' : 'text-left'}`;
 
-      // Sender name
-      const nameSpan = document.createElement('div');
-      nameSpan.className = 'text-xs text-gray-400 mb-0.5';
-      nameSpan.innerText = senderName;
+      if (!isOwn) {
+        const nameSpan = document.createElement('div');
+        nameSpan.className = 'text-xs text-gray-400 mb-0.5';
+        nameSpan.innerText = senderName;
+        contentWrapper.appendChild(nameSpan);
+      }
 
-      // Bubble
       const bubble = document.createElement('div');
-      bubble.className = 'px-4 py-2 rounded-2xl bg-gray-800 text-gray-100 rounded-bl-none message-bubble';
+      bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
       bubble.innerText = text;
-
-      // Timestamp
-      const timeSpan = document.createElement('div');
-      timeSpan.className = 'text-[10px] mt-1 text-left text-gray-500';
-      timeSpan.innerText = timestamp
-        ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : '';
-
-      contentWrapper.appendChild(nameSpan);
       contentWrapper.appendChild(bubble);
-      contentWrapper.appendChild(timeSpan);
-      div.appendChild(avatarImg);
+
+      if (!isOwn) {
+        const timeSpan = document.createElement('div');
+        timeSpan.className = 'text-[10px] mt-1 text-gray-500';
+        timeSpan.innerText = timestamp
+          ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
+        contentWrapper.appendChild(timeSpan);
+      }
+
       div.appendChild(contentWrapper);
       messagesContainer.appendChild(div);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     function sendMessage() {
+      if (!isReady) {
+        console.warn('Not ready yet – please wait a moment');
+        return;
+      }
       const text = messageInput.value.trim();
       if (!text) return;
       socket.emit('chat message', { text });
