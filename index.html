@@ -39,12 +39,19 @@
       background: rgba(0,0,0,0.3);
       padding: 0.75rem;
     }
+    .chat-header {
+      flex-shrink: 0;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 0.75rem 1.25rem;
+    }
   </style>
 </head>
 <body>
-  <div class="bg-black/40 backdrop-blur-sm border-b border-white/10 px-5 py-3 flex-shrink-0">
-    <h1 class="text-lg font-semibold tracking-wide">✧ whisper room ✧</h1>
-    <p class="text-xs text-gray-400">your messages appear on the right – others see your name and avatar</p>
+  <div class="chat-header">
+    <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
+    <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
   </div>
 
   <div id="messagesContainer" class="space-y-2"></div>
@@ -73,6 +80,28 @@
       if (!storedId) localStorage.setItem('whisper_user_id', data.userId);
       isReady = true;
       socket.emit('load history');
+    });
+
+    // Function to refresh messages (fetch latest history)
+    function refreshMessages() {
+      if (!isReady) return;
+      console.log('Refreshing messages...');
+      socket.emit('load history');
+    }
+
+    // Auto-refresh when the page becomes visible again (user returns to tab)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        refreshMessages();
+      }
+    });
+
+    // Auto-refresh when socket reconnects (e.g., after network drop)
+    socket.on('connect', () => {
+      console.log('Socket reconnected, refreshing messages');
+      if (isReady) {
+        refreshMessages();
+      }
     });
 
     socket.on('load messages', (msgs) => {
