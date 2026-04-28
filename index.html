@@ -17,12 +17,16 @@
     #messagesContainer { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; }
     .input-container { flex-shrink: 0; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); padding: 0.75rem; }
     .chat-header { flex-shrink: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1.25rem; }
+    .ios-notice { background: rgba(0,0,0,0.3); border-radius: 20px; padding: 0.25rem 0.75rem; font-size: 0.7rem; display: inline-block; margin-top: 0.25rem; color: #9ca3af; }
   </style>
 </head>
 <body>
   <div class="chat-header">
-    <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
-    <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
+    <div>
+      <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
+      <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
+      <div class="ios-notice hidden" id="iosNotice">📱 Add to home screen for notifications</div>
+    </div>
   </div>
   <div id="messagesContainer" class="space-y-2"></div>
   <div class="input-container">
@@ -38,24 +42,74 @@
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    const iosNotice = document.getElementById('iosNotice');
 
     let currentUserName = null;
     let isReady = false;
+    let notificationPermission = false;
+    let pageVisible = true;
+    let notificationRequested = false;
 
-    let storedId = localStorage.getItem('whisper_user_id');
-    console.log('📦 LocalStorage whisper_user_id:', storedId);
-
-    socket.emit('identify', storedId, (data) => {
-      console.log('✅ Identify response:', data);
-      currentUserName = data.name;
-      if (!storedId) {
-        localStorage.setItem('whisper_user_id', data.userId);
-        console.log('💾 Saved new userId to localStorage:', data.userId);
-      } else {
-        console.log('♻️ Using existing userId:', data.userId);
+    // --- Notifications setup (no toggle)
+    async function requestNotificationPermission() {
+      if (!('Notification' in window)) {
+        console.log('Notifications not supported');
+        return false;
       }
+      if (Notification.permission === 'granted') {
+        notificationPermission = true;
+        return true;
+      }
+      if (Notification.permission !== 'denied' && !notificationRequested) {
+        notificationRequested = true;
+        const perm = await Notification.requestPermission();
+        notificationPermission = (perm === 'granted');
+        if (!notificationPermission && /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone) {
+          iosNotice.classList.remove('hidden');
+        }
+        return notificationPermission;
+      }
+      return false;
+    }
+
+    // Trigger notification for others' messages when page is hidden
+    function showNotification(senderName, messageText) {
+      if (!notificationPermission) return;
+      if (pageVisible) return;
+      if (senderName === currentUserName) return;
+      new Notification(`📨 ${senderName}`, {
+        body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
+        icon: 'https://randomuser.me/api/portraits/lego/1.jpg',
+        silent: false
+      });
+    }
+
+    // Track page visibility
+    document.addEventListener('visibilitychange', () => {
+      pageVisible = document.visibilityState === 'visible';
+    });
+    pageVisible = document.visibilityState === 'visible';
+
+    // iOS home screen detection: show notice if not added
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone && Notification.permission !== 'granted') {
+      iosNotice.classList.remove('hidden');
+    }
+
+    // --- Socket & identity (same as before, with notification request on first focus)
+    let storedId = localStorage.getItem('whisper_user_id');
+    socket.emit('identify', storedId, (data) => {
+      currentUserName = data.name;
+      if (!storedId) localStorage.setItem('whisper_user_id', data.userId);
       isReady = true;
       socket.emit('load history');
+      // Request notification permission after user interacts (first click on input or send)
+      const requestOnInteraction = () => {
+        requestNotificationPermission();
+        messageInput.removeEventListener('focus', requestOnInteraction);
+        sendBtn.removeEventListener('click', requestOnInteraction);
+      };
+      messageInput.addEventListener('focus', requestOnInteraction);
+      sendBtn.addEventListener('click', requestOnInteraction);
     });
 
     function refreshMessages() {
@@ -80,6 +134,9 @@
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
+      if (msg.senderName !== currentUserName) {
+        showNotification(msg.senderName, msg.text);
+      }
     });
 
     function appendMessage(msg) {
