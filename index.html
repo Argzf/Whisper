@@ -176,6 +176,7 @@
 
     socket.on('system message', (data) => {
       if (!isReady) return;
+      console.log('📢 Broadcast received:', data.text);  // debug to confirm reception
       appendSystemMessage(data.text);
       safeNotify('📢 System', data.text);
     });
