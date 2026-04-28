@@ -118,6 +118,8 @@
   <div id="messagesContainer" class="space-y-2"></div>
   <div class="input-container">
     <div class="flex gap-2 max-w-3xl mx-auto">
+      <button id="emojiBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">😊</button>
+      <button id="attachBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">📎</button>
       <input type="text" id="messageInput" placeholder="Type Anything..." autocomplete="off"
              class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-white">
       <button id="sendBtn" class="send-btn px-6 py-3 rounded-xl font-medium shadow-lg text-white">
@@ -131,16 +133,118 @@
     </div>
   </div>
 
+  <!-- Progress bar container (hidden initially) -->
+  <div id="uploadProgressContainer" class="hidden fixed bottom-24 left-4 right-4 bg-gray-800/90 backdrop-blur-sm rounded-xl p-3 shadow-lg z-50 max-w-md mx-auto">
+    <div class="flex justify-between items-center mb-2">
+      <span class="text-sm text-white">Uploading...</span>
+      <button id="cancelUploadBtn" class="text-red-400 text-sm">Cancel</button>
+    </div>
+    <div class="w-full bg-gray-700 rounded-full h-2">
+      <div id="uploadProgressBar" class="bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" class="hidden" accept="image/*,video/*,application/pdf,text/plain,application/zip">
+
   <script>
-    // ==================== CORE CHAT ====================
+    // ==================== DOM elements ====================
     const socket = io();
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const attachBtn = document.getElementById('attachBtn');
+    const fileInput = document.getElementById('fileInput');
+    const uploadProgressContainer = document.getElementById('uploadProgressContainer');
+    const uploadProgressBar = document.getElementById('uploadProgressBar');
+    const cancelUploadBtn = document.getElementById('cancelUploadBtn');
 
     let currentUserName = null;
     let isReady = false;
+    let currentXhr = null;
 
+    // ==================== Emoji picker ====================
+    const emojis = ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠'];
+    function buildEmojiPicker() {
+      const picker = document.createElement('div');
+      picker.id = 'emojiPicker';
+      picker.className = 'fixed bottom-20 left-4 right-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-2 hidden grid grid-cols-6 gap-1 max-h-48 overflow-y-auto z-50';
+      for (let em of emojis.slice(0, 70)) {
+        const span = document.createElement('span');
+        span.textContent = em;
+        span.className = 'text-2xl text-center cursor-pointer p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded';
+        span.onclick = () => {
+          messageInput.value += em;
+          messageInput.focus();
+          picker.classList.add('hidden');
+        };
+        picker.appendChild(span);
+      }
+      document.body.appendChild(picker);
+      emojiBtn.onclick = (e) => { e.stopPropagation(); picker.classList.toggle('hidden'); };
+      document.addEventListener('click', (e) => { if (!picker.contains(e.target) && e.target !== emojiBtn) picker.classList.add('hidden'); });
+    }
+    buildEmojiPicker();
+
+    // ==================== File upload ====================
+    attachBtn.onclick = () => fileInput.click();
+
+    function uploadFile(file) {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const xhr = new XMLHttpRequest();
+        currentXhr = xhr;
+        uploadProgressContainer.classList.remove('hidden');
+        uploadProgressBar.style.width = '0%';
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = (e.loaded / e.total) * 100;
+            uploadProgressBar.style.width = percent + '%';
+          }
+        });
+        xhr.onload = () => {
+          currentXhr = null;
+          uploadProgressContainer.classList.add('hidden');
+          if (xhr.status === 200) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            reject(new Error('Upload failed'));
+          }
+        };
+        xhr.onerror = () => {
+          currentXhr = null;
+          uploadProgressContainer.classList.add('hidden');
+          reject(new Error('Network error'));
+        };
+        xhr.open('POST', '/upload', true);
+        xhr.send(formData);
+      });
+    }
+
+    cancelUploadBtn.onclick = () => {
+      if (currentXhr) {
+        currentXhr.abort();
+        currentXhr = null;
+        uploadProgressContainer.classList.add('hidden');
+        alert('Upload cancelled');
+      }
+    };
+
+    fileInput.onchange = async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      fileInput.value = '';
+      try {
+        const { url, name, type } = await uploadFile(file);
+        socket.emit('chat message', { text: '', file: { url, name, type } });
+      } catch (err) {
+        console.error(err);
+        alert('Upload failed');
+      }
+    };
+
+    // ==================== Core chat ====================
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
       currentUserName = data.name;
@@ -171,12 +275,13 @@
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
-      safeNotify(msg.senderName, msg.text);
+      if (msg.text) safeNotify(msg.senderName, msg.text);
+      else safeNotify(msg.senderName, 'sent a file');
     });
 
     socket.on('system message', (data) => {
       if (!isReady) return;
-      console.log('📢 Broadcast received:', data.text);  // debug to confirm reception
+      console.log('📢 Broadcast received:', data.text);
       appendSystemMessage(data.text);
       safeNotify('📢 System', data.text);
     });
@@ -208,7 +313,29 @@
       }
       const bubble = document.createElement('div');
       bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
-      bubble.innerText = msg.text;
+      if (msg.file) {
+        if (msg.file.type && msg.file.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.src = msg.file.url;
+          img.className = 'max-w-full rounded max-h-40 cursor-pointer';
+          img.onclick = () => window.open(msg.file.url);
+          bubble.appendChild(img);
+        } else {
+          const link = document.createElement('a');
+          link.href = msg.file.url;
+          link.textContent = `📎 ${msg.file.name}`;
+          link.target = '_blank';
+          link.className = 'underline text-inherit';
+          bubble.appendChild(link);
+        }
+        if (msg.text) {
+          const textDiv = document.createElement('div');
+          textDiv.innerText = msg.text;
+          bubble.appendChild(textDiv);
+        }
+      } else {
+        bubble.innerText = msg.text;
+      }
       contentWrapper.appendChild(bubble);
       if (!isOwn) {
         const timeSpan = document.createElement('div');
@@ -234,7 +361,7 @@
       const text = messageInput.value.trim();
       if (!text) return;
       requestNotificationPermissionSafe();
-      socket.emit('chat message', { text });
+      socket.emit('chat message', { text, file: null });
       messageInput.value = '';
       messageInput.focus();
     }
@@ -244,7 +371,7 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    // ==================== NOTIFICATIONS ====================
+    // ==================== Notifications ====================
     let notificationsEnabled = false;
     let pageVisible = true;
 
