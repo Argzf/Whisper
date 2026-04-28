@@ -8,19 +8,16 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta name="theme-color" content="#1e293b">
 
-  <!-- Primary Meta Tags -->
   <title>Whisper</title>
   <meta name="title" content="Whisper">
   <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
 
-  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="whisper.arsan.my">
   <meta property="og:title" content="Whisper">
   <meta property="og:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
   <meta property="og:image" content="/wr-banner.png">
 
-  <!-- X (Twitter) -->
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="whisper.arsan.my">
   <meta property="twitter:title" content="Whisper">
@@ -31,8 +28,6 @@
   <script src="/socket.io/socket.io.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    /* Darker gradient background – less bright */
     body {
       background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
       height: 100dvh;
@@ -40,7 +35,6 @@
       flex-direction: column;
       overflow: hidden;
     }
-    
     .chat-header {
       background: rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(12px);
@@ -48,39 +42,33 @@
       padding: 0.75rem 1.25rem;
       flex-shrink: 0;
     }
-    
     #messagesContainer {
       flex: 1;
       overflow-y: auto;
       padding: 1rem;
       -webkit-overflow-scrolling: touch;
     }
-    
     .message:not(.own) .message-bubble {
       background: rgba(30, 41, 59, 0.7);
       backdrop-filter: blur(4px);
       color: #f1f5f9;
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
     .own .message-bubble {
       background: rgba(99, 102, 241, 0.8);
       backdrop-filter: blur(4px);
       color: white;
       border: 1px solid rgba(255, 255, 255, 0.2);
     }
-    
     .message-bubble {
       word-break: break-word;
       white-space: normal;
       transition: all 0.1s ease;
     }
-    
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: #818CF8; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #A5B4FC; }
-    
     .input-container {
       background: rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(8px);
@@ -88,7 +76,6 @@
       padding: 0.75rem;
       flex-shrink: 0;
     }
-    
     input {
       background: rgba(0, 0, 0, 0.5) !important;
       border-color: rgba(255, 255, 255, 0.2) !important;
@@ -99,16 +86,24 @@
       ring: 2px solid #A5B4FC;
       border-color: #A5B4FC !important;
     }
-    
     .send-btn {
       background: linear-gradient(135deg, #4f46e5, #6366f1);
       transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     .send-btn:hover {
       background: linear-gradient(135deg, #6366f1, #818cf8);
       transform: scale(0.98);
     }
-    
+    .send-icon {
+      width: 18px;
+      height: 18px;
+      stroke: white;
+      stroke-width: 2;
+    }
     .text-gray-400 { color: #cbd5e1 !important; }
     .text-gray-500 { color: #94a3b8 !important; }
     .text-gray-300 { color: #e2e8f0 !important; }
@@ -125,7 +120,14 @@
     <div class="flex gap-2 max-w-3xl mx-auto">
       <input type="text" id="messageInput" placeholder="type anything..." autocomplete="off"
              class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-white">
-      <button id="sendBtn" class="send-btn px-6 py-3 rounded-xl font-medium shadow-lg">send</button>
+      <button id="sendBtn" class="send-btn px-6 py-3 rounded-xl font-medium shadow-lg text-white">
+        <span class="hidden sm:inline">Send</span>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="send-icon">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="8"></line>
+          <polyline points="8 12 12 8 16 12"></polyline>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -172,16 +174,21 @@
       safeNotify(msg.senderName, msg.text);
     });
 
-    // ***** NEW: Handle system messages (broadcasts) *****
     socket.on('system message', (data) => {
       if (!isReady) return;
       appendSystemMessage(data.text);
       safeNotify('📢 System', data.text);
     });
 
+    socket.on('message deleted', (data) => {
+      const msgDiv = document.querySelector(`[data-message-id="${data.id}"]`);
+      if (msgDiv) msgDiv.remove();
+    });
+
     function appendMessage(msg) {
       const isOwn = (msg.senderName === currentUserName);
       const div = document.createElement('div');
+      div.setAttribute('data-message-id', msg.id);
       div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`;
       if (!isOwn) {
         const avatarImg = document.createElement('img');
