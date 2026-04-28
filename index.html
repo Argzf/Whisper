@@ -3,8 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="theme-color" content="#1e293b">
+
   <title>Whisper</title>
-  <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Unique names, real‑time messaging, file sharing, and push notifications. No accounts, no tracking.">
+  <meta name="title" content="Whisper">
+  <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="whisper.arsan.my">
+  <meta property="og:title" content="Whisper">
+  <meta property="og:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+  <meta property="og:image" content="/wr-banner.png">
+
+  <!-- X (Twitter) -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="whisper.arsan.my">
+  <meta property="twitter:title" content="Whisper">
+  <meta property="twitter:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+  <meta property="twitter:image" content="/wr-banner.png">
+
   <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -147,7 +168,12 @@
       </div>
       <div class="glass-card text-center">
         <div class="feature-icon mx-auto">
-          <svg class="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <!-- Custom phone SVG (PWA) -->
+          <svg class="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" transform="matrix(1,0,0,-1,0,0)">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+            <path d="M8 5h8" stroke-linecap="round"></path>
+            <line x1="10" y1="20" x2="14" y2="20" stroke-linecap="round"></line>
+          </svg>
         </div>
         <h3 class="text-xl font-semibold text-white mb-2">PWA</h3>
         <p class="text-gray-300 text-sm">Receive notifications and stay up to date.</p>
