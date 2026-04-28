@@ -309,7 +309,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
     const presets = {
       Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-      ArGzf: { name: 'Argzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' }
+      ArGzf: { name: 'Argzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
+      Admin: { name: 'Admin', avatar: "/admin-favicon.svg" },
     };
     const newIdentity = presets[preset];
     if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
