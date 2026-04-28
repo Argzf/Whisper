@@ -139,7 +139,7 @@ function getClientIP(socket) {
   return socket.handshake.address;
 }
 
-// ---- Discord send for chat messages (embed with author, optional file, and link) ----
+// ---- Discord send for chat messages (embed with optional file and link) ----
 async function sendToDiscord(name, avatar, text, ip, file = null) {
   if (!WEBHOOK_URL) return;
   const embed = {
@@ -149,12 +149,10 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
   };
   let description = text || '';
   if (file) {
-    // For images, add a large preview + link
     if (file.type && file.type.startsWith('image/')) {
       embed.image = { url: file.url };
       description += description ? `\n\n[🖼️ View full size](${file.url})` : `[🖼️ View full size](${file.url})`;
     } else {
-      // For other files, add a clickable link
       description += description ? `\n\n📎 [${file.name}](${file.url})` : `📎 [${file.name}](${file.url})`;
     }
   }
@@ -240,7 +238,6 @@ io.on('connection', (socket) => {
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
-    // Send to Discord with file info (includes link)
     await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
   });
 
