@@ -70,6 +70,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
         </html>
       `);
     } else {
+      // Login page with centered button
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -78,9 +79,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
           <title>Admin Login</title>
           <style>
             body { background: #0a0c10; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: system-ui; }
-            .card { background: #1e1e2e; padding: 2rem; border-radius: 1rem; width: 300px; }
-            input, button { width: 100%; padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
-            button { background: #6366f1; color: white; cursor: pointer; }
+            .card { background: #1e1e2e; padding: 2rem; border-radius: 1rem; width: 300px; text-align: center; }
+            input, button { padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
+            input { background: #2d3748; color: white; width: 100%; box-sizing: border-box; }
+            button { background: #6366f1; color: white; cursor: pointer; width: auto; margin: 0.5rem auto; display: block; }
+            button:hover { background: #818cf8; }
           </style>
         </head>
         <body>
