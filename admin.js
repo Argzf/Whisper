@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames) {
+function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings) {
   function escapeHtml(str) {
     return str.replace(/[&<>]/g, (m) => {
       if (m === '&') return '&amp;';
@@ -19,7 +19,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     if (isAuthenticated(req)) {
       const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
       const recentMessages = messages.slice(-50).reverse();
-      // Build HTML using string concatenation to avoid nested backticks
       let html = `
         <!DOCTYPE html>
         <html>
@@ -61,7 +60,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 <h2>📨 Recent Messages (last 50)</h2>
                 <div id="messageList">
       `;
-      // Add messages
       if (recentMessages.length === 0) {
         html += '<p>No messages yet.</p>';
       } else {
@@ -109,9 +107,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             <h2 style="margin-top: 2rem;">🔄 Change Your Identity</h2>
             <form id="changeIdentityForm">
               <select id="presetSelect" style="background: #2d3748; color: white;">
-                <option value="admin_whisper">Whisper Guardian (Admin)</option>
-                <option value="admin_echo">Echo Seeker</option>
-                <option value="admin_serene">Serene Keeper</option>
+                <option value="Arsan">Arsan</option>
+                <option value="ArGzf">ArGzf</option>
+                <option value="Admin">Admin</option>
               </select>
               <button type="submit">Change</button>
             </form>
@@ -309,8 +307,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
     const presets = {
       Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-      ArGzf: { name: 'Argzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-      Admin: { name: 'Admin', avatar: "/admin-favicon.svg" },
+      ArGzf: { name: 'ArGzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
+      Admin: { name: 'Admin', avatar: '/admin-favicon.svg' },
     };
     const newIdentity = presets[preset];
     if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
