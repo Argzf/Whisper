@@ -19,42 +19,54 @@ if (!WEBHOOK_URL) {
 }
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 
-// Persistent storage
+// Storage files
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 
-let takenNames = new Set();
-let userMappings = {};
+// Helper: read user mappings from disk (always fresh)
+function readUserMappings() {
+  try {
+    if (fs.existsSync(USER_MAPPINGS_FILE)) {
+      const data = fs.readFileSync(USER_MAPPINGS_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('Failed to read user mappings', e);
+  }
+  return {};
+}
 
-// Load data from disk (synchronous)
-function loadData() {
+// Helper: write user mappings to disk
+function writeUserMappings(mappings) {
+  try {
+    fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(mappings, null, 2));
+    console.log(`💾 Saved ${Object.keys(mappings).length} user mappings`);
+  } catch (e) {
+    console.error('Failed to write user mappings', e);
+  }
+}
+
+// Helper: read taken names
+function readTakenNames() {
   try {
     if (fs.existsSync(TAKEN_NAMES_FILE)) {
-      const arr = JSON.parse(fs.readFileSync(TAKEN_NAMES_FILE, 'utf8'));
-      takenNames = new Set(arr);
-      console.log(`✅ Loaded ${takenNames.size} taken names from disk`);
+      const data = fs.readFileSync(TAKEN_NAMES_FILE, 'utf8');
+      return new Set(JSON.parse(data));
     }
-    if (fs.existsSync(USER_MAPPINGS_FILE)) {
-      userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
-      console.log(`✅ Loaded ${Object.keys(userMappings).length} user mappings from disk`);
-    } else {
-      console.log(`⚠️ ${USER_MAPPINGS_FILE} not found, starting empty`);
-    }
-  } catch (e) { console.error('Failed to load data', e); }
+  } catch (e) { console.error(e); }
+  return new Set();
 }
 
-function saveTakenNames() {
-  fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2));
-  console.log(`💾 Saved ${takenNames.size} taken names`);
+function writeTakenNames(taken) {
+  try {
+    fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(taken), null, 2));
+    console.log(`💾 Saved ${taken.size} taken names`);
+  } catch (e) { console.error(e); }
 }
 
-function saveUserMappings() {
-  fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
-  console.log(`💾 Saved ${Object.keys(userMappings).length} user mappings`);
-}
-
-// Initial load
-loadData();
+// In-memory caches (initialised from disk)
+let takenNames = readTakenNames();
+let userMappings = readUserMappings();
 
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
 const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog', 'Grizzly', 'Bear', 'Cow', 'Lego', 'Brick'];
@@ -76,7 +88,7 @@ function generateUniqueName() {
     const name = `${adj} ${noun}`;
     if (!takenNames.has(name)) {
       takenNames.add(name);
-      saveTakenNames();
+      writeTakenNames(takenNames);
       return name;
     }
   }
@@ -85,7 +97,7 @@ function generateUniqueName() {
     const name = `User ${counter++}`;
     if (!takenNames.has(name)) {
       takenNames.add(name);
-      saveTakenNames();
+      writeTakenNames(takenNames);
       return name;
     }
   }
@@ -141,9 +153,12 @@ io.on('connection', (socket) => {
 
   socket.on('identify', (storedUserId, callback) => {
     console.log(`🆔 Identify called with storedUserId: ${storedUserId} (type: ${typeof storedUserId})`);
-    
-    // Log current mapping keys for debugging
-    console.log(`📋 Current user mapping keys: ${Object.keys(userMappings).join(', ') || '(none)'}`);
+
+    // Reload mappings from disk to ensure we have the latest
+    const freshMappings = readUserMappings();
+    // Merge fresh mappings into in-memory cache (just in case)
+    userMappings = freshMappings;
+    console.log(`📋 Current user mappings count: ${Object.keys(userMappings).length}`);
 
     let userId = storedUserId;
     let name, avatar;
@@ -155,14 +170,13 @@ io.on('connection', (socket) => {
       userId = storedUserId;
       console.log(`✅ Returning existing user: ${name} (${userId})`);
     } else {
-      // No existing mapping – create new identity
+      // No mapping found – create new identity
       userId = crypto.randomUUID();
       name = generateUniqueName();
       avatar = getRandomAvatar();
       userMappings[userId] = { name, avatar };
-      saveUserMappings();   // immediately persist
+      writeUserMappings(userMappings);
       console.log(`🆕 Created new user: ${name} (${userId})`);
-      console.log(`💾 New mapping written to disk`);
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
