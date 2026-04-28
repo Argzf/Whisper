@@ -34,9 +34,7 @@
   </div>
 
   <script>
-    // ------------------------------------------------------------
-    //  CORE CHAT LOGIC (exactly the same as the working version)
-    // ------------------------------------------------------------
+    // ==================== CORE CHAT (exactly as working version) ====================
     const socket = io();
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('messageInput');
@@ -75,7 +73,7 @@
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
-      // --- NOTIFICATION (safe, no‑break) ---
+      // --- NOTIFICATION CALL (safe) ---
       safeNotify(msg.senderName, msg.text);
     });
 
@@ -117,7 +115,7 @@
       if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
-      // --- Request permission on first send (if supported) ---
+      // --- Request notification permission on first user message (user gesture) ---
       requestNotificationPermissionSafe();
       socket.emit('chat message', { text });
       messageInput.value = '';
@@ -129,16 +127,9 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    // ------------------------------------------------------------
-    //  SAFE NOTIFICATION CODE (all errors caught, does not block chat)
-    // ------------------------------------------------------------
+    // ==================== SAFE NOTIFICATIONS (no overrides, only added calls) ====================
     let notificationsEnabled = false;
     let pageVisible = true;
-
-    // Visibility detection (non‑critical)
-    document.addEventListener('visibilitychange', () => {
-      pageVisible = !document.hidden;
-    });
 
     function requestNotificationPermissionSafe() {
       try {
@@ -150,7 +141,7 @@
             notificationsEnabled = (perm === 'granted');
           }).catch(() => {});
         }
-      } catch (e) { /* ignore */ }
+      } catch(e) { /* ignore */ }
     }
 
     function safeNotify(senderName, messageText) {
@@ -163,8 +154,12 @@
           icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
           silent: false,
         });
-      } catch (e) { /* ignore */ }
+      } catch(e) { /* ignore */ }
     }
+
+    document.addEventListener('visibilitychange', () => {
+      pageVisible = !document.hidden;
+    });
   </script>
 </body>
 </html>
