@@ -1,64 +1,98 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.static('.')); // serve index.html from current folder
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(express.static(path.join(__dirname)));
 
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 if (!WEBHOOK_URL) {
-  console.error('❌ Missing DISCORD_WEBHOOK_URL in .env file');
+  console.error('❌ Missing DISCORD_WEBHOOK_URL in .env');
   process.exit(1);
 }
 
-// Rate limiting simple in-memory store
-const cooldown = new Map();
-const COOLDOWN_MS = 10000; // 10 seconds
+// Store messages in memory (or write to file if you want persistence)
+let messages = [];
 
-app.post('/send', async (req, res) => {
-  const { username, message } = req.body;
-  const ip = req.ip || req.connection.remoteAddress;
+// Helper: random name and random avatar for Discord logs
+const adjectives = ['Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift'];
+const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog'];
+const avatars = [
+  'https://randomuser.me/api/portraits/lego/1.jpg',
+  'https://randomuser.me/api/portraits/lego/2.jpg',
+  'https://randomuser.me/api/portraits/lego/3.jpg',
+  'https://randomuser.me/api/portraits/lego/4.jpg',
+  'https://randomuser.me/api/portraits/lego/5.jpg',
+  'https://randomuser.me/api/portraits/lego/6.jpg',
+  'https://randomuser.me/api/portraits/lego/7.jpg',
+  'https://randomuser.me/api/portraits/lego/8.jpg'
+];
 
-  if (!message || message.trim().length === 0) {
-    return res.status(400).json({ error: 'Message cannot be empty' });
-  }
+function getRandomName() {
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  return `${adj} ${noun}`;
+}
 
-  // Cooldown check
-  const last = cooldown.get(ip);
-  const now = Date.now();
-  if (last && (now - last) < COOLDOWN_MS) {
-    return res.status(429).json({ error: `Please wait ${Math.ceil((COOLDOWN_MS - (now - last)) / 1000)} seconds` });
-  }
-  cooldown.set(ip, now);
-  setTimeout(() => cooldown.delete(ip), COOLDOWN_MS);
+function getRandomAvatar() {
+  return avatars[Math.floor(Math.random() * avatars.length)];
+}
 
+// Function to send message to Discord webhook with random name/avatar
+async function sendToDiscord(messageText) {
+  const randomName = getRandomName();
+  const randomAvatar = getRandomAvatar();
   const payload = {
-    content: message,
-    username: username?.trim() || 'Anonymous',
-    avatar_url: 'https://github.com/rajatcj.png' // optional
+    content: messageText,
+    username: randomName,
+    avatar_url: randomAvatar
   };
-
   try {
-    const response = await fetch(WEBHOOK_URL, {
+    await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (response.ok) {
-      res.json({ success: true });
-    } else {
-      console.error('Webhook error', response.status);
-      res.status(500).json({ error: 'Failed to send message to Discord' });
-    }
+    console.log(`📨 Discord: ${randomName} said "${messageText}"`);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Discord webhook failed', err);
   }
+}
+
+io.on('connection', (socket) => {
+  console.log('a user connected');
+
+  // Send message history to new client (only message text, no names)
+  socket.emit('load messages', messages);
+
+  socket.on('chat message', async (data) => {
+    const messageText = data.text.trim();
+    if (!messageText) return;
+
+    // Store message (only text, no sender info)
+    const msg = { text: messageText, timestamp: new Date().toISOString() };
+    messages.push(msg);
+    // Keep last 200 messages
+    if (messages.length > 200) messages.shift();
+
+    // Broadcast to all connected clients
+    io.emit('chat message', msg);
+
+    // Also send to Discord with random name/avatar
+    await sendToDiscord(messageText);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('user disconnected');
+  });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Contact form backend running on http://localhost:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`🔥 Anonymous chat running on http://localhost:${PORT}`);
 });
