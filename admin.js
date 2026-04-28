@@ -17,7 +17,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     if (isAuthenticated(req)) {
       const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
       const recentMessages = messages.slice(-50).reverse();
-      res.send(`
+      // Build HTML with embedded client script that uses safe string formatting
+      const dashboardHtml = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -69,44 +70,52 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
           </div>
           <script>
+            // Client‑side script (no nested backticks)
             (function() {
-              const deleteButtons = document.querySelectorAll('.delete-btn');
-              deleteButtons.forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                  const msgId = btn.getAttribute('data-id');
+              var deleteBtns = document.querySelectorAll('.delete-btn');
+              for (var i = 0; i < deleteBtns.length; i++) {
+                deleteBtns[i].addEventListener('click', function(e) {
+                  var msgId = this.getAttribute('data-id');
                   if (!msgId) return;
                   if (confirm('Delete this message?')) {
-                    const res = await fetch('/admin/delete-message/' + msgId, { method: 'POST' });
-                    if (res.ok) {
-                      const msgDiv = document.querySelector(`.message-item[data-message-id="${msgId}"]`);
-                      if (msgDiv) msgDiv.remove();
-                    } else {
-                      alert('Delete failed');
-                    }
+                    fetch('/admin/delete-message/' + msgId, { method: 'POST' })
+                      .then(function(res) {
+                        if (res.ok) {
+                          var msgDiv = document.querySelector('.message-item[data-message-id=\"' + msgId + '\"]');
+                          if (msgDiv) msgDiv.remove();
+                        } else {
+                          alert('Delete failed');
+                        }
+                      });
                   }
                 });
-              });
-              document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const text = document.getElementById('broadcastText').value.trim();
-                if (!text) return;
-                const res = await fetch('/admin/broadcast', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                  body: 'broadcastText=' + encodeURIComponent(text)
+              }
+              var broadcastForm = document.getElementById('broadcastForm');
+              if (broadcastForm) {
+                broadcastForm.addEventListener('submit', function(e) {
+                  e.preventDefault();
+                  var text = document.getElementById('broadcastText').value.trim();
+                  if (!text) return;
+                  fetch('/admin/broadcast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'broadcastText=' + encodeURIComponent(text)
+                  }).then(function(res) {
+                    if (res.ok) {
+                      document.getElementById('broadcastText').value = '';
+                      alert('Broadcast sent');
+                    } else {
+                      alert('Broadcast failed');
+                    }
+                  });
                 });
-                if (res.ok) {
-                  document.getElementById('broadcastText').value = '';
-                  alert('Broadcast sent');
-                } else {
-                  alert('Broadcast failed');
-                }
-              });
+              }
             })();
           </script>
         </body>
         </html>
-      `);
+      `;
+      res.send(dashboardHtml);
     } else {
       res.send(`
         <!DOCTYPE html>
