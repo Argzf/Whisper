@@ -43,7 +43,7 @@ function saveUserMappings() {
 }
 loadData();
 
-// Name generation pool (infinite combination, but no repeats ever)
+// Name generation pool – combinations are unique per user, never repeated globally
 const adjectives = ['Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift'];
 const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog'];
 
@@ -123,10 +123,10 @@ io.on('connection', (socket) => {
       avatar = identity.avatar;
       userId = storedUserId;
     } else {
-      // New user – create permanent identity
+      // New user – create permanent identity with unique name and random avatar
       userId = crypto.randomUUID();
       name = generateUniqueName();   // never reused
-      avatar = getRandomAvatar();    // may be reused across users
+      avatar = getRandomAvatar();    // may be reused across users, static for this user
       userMappings[userId] = { name, avatar };
       saveUserMappings();
     }
