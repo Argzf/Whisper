@@ -8,7 +8,12 @@
   <script src="/socket.io/socket.io.js"></script>
   <style>
     body { background: #0a0c10; }
-    .message-bubble { word-wrap: break-word; white-space: normal; }
+    /* fix for long messages */
+    .message-bubble {
+      word-break: break-word;
+      white-space: normal;
+      max-width: 100%;
+    }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #1e1e2e; }
     ::-webkit-scrollbar-thumb { background: #3b3b5c; border-radius: 10px; }
@@ -34,14 +39,14 @@
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
 
-    // Get stored user ID from localStorage (if any)
-    let storedId = localStorage.getItem('whisperUserId');
+    // Use a consistent localStorage key
+    let storedId = localStorage.getItem('whisper_user_id');
 
-    // Identify with server – this gives us our permanent name+avatar (never shown on page)
+    // Identify with server – this should return the same name+avatar every time
     socket.emit('identify', storedId, (data) => {
       console.log('Identity confirmed:', data.name);
       if (!storedId) {
-        localStorage.setItem('whisperUserId', data.userId);
+        localStorage.setItem('whisper_user_id', data.userId);
       }
     });
 
@@ -52,7 +57,6 @@
       msgs.forEach(msg => appendMessage(msg.text, msg.timestamp));
     });
 
-    // New message from anyone
     socket.on('chat message', (msg) => {
       appendMessage(msg.text, msg.timestamp);
     });
@@ -61,7 +65,7 @@
       const div = document.createElement('div');
       div.className = 'flex justify-start';
       const bubble = document.createElement('div');
-      bubble.className = 'px-4 py-2 rounded-2xl bg-gray-800 text-gray-100 rounded-bl-none max-w-[75%]';
+      bubble.className = 'px-4 py-2 rounded-2xl bg-gray-800 text-gray-100 rounded-bl-none max-w-[75%] message-bubble';
       bubble.innerText = text;
       const timeSpan = document.createElement('div');
       timeSpan.className = 'text-[10px] mt-1 text-left text-gray-500';
@@ -69,6 +73,7 @@
         ? new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
         : '';
       const wrapper = document.createElement('div');
+      wrapper.style.maxWidth = '75%';
       wrapper.appendChild(bubble);
       wrapper.appendChild(timeSpan);
       div.appendChild(wrapper);
