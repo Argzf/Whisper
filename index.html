@@ -24,6 +24,9 @@
   <meta property="twitter:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
   <meta property="twitter:image" content="/wr-banner.png">
 
+  <!-- Montserrat Alternates font -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700&display=swap" rel="stylesheet">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
@@ -35,13 +38,79 @@
       flex-direction: column;
       overflow: hidden;
     }
+
+    /* ========== NEW CUSTOM HEADER STYLES ========== */
     .chat-header {
-      background: rgba(0, 0, 0, 0.2);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 0.75rem 1.25rem;
-      flex-shrink: 0;
+      background: transparent;
+      backdrop-filter: none;
+      border-bottom: none;
+      padding: 0;
     }
+    .whisper-banner {
+      background: rgba(10, 14, 23, 0.65);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.9rem 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .banner-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .bubble-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    }
+    .bubble-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: white;
+      stroke-width: 1.8;
+    }
+    .wordmark {
+      font-family: 'Montserrat Alternates', system-ui, -apple-system, sans-serif;
+      font-size: 1.55rem;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      background: linear-gradient(135deg, #ffffff, #c7d2fe);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    .tagline {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.2rem 0.6rem;
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    @media (max-width: 640px) {
+      .whisper-banner { padding: 0.7rem 1rem; }
+      .wordmark { font-size: 1.25rem; }
+      .bubble-icon { width: 28px; height: 28px; }
+      .bubble-icon svg { width: 15px; height: 15px; }
+      .tagline { font-size: 0.65rem; }
+    }
+
+    /* ========== EXISTING CHAT STYLES (unchanged) ========== */
     #messagesContainer {
       flex: 1;
       overflow-y: auto;
@@ -111,11 +180,27 @@
   </style>
 </head>
 <body>
+  <!-- NEW HEADER (glass banner with logo + Montserrat Alternates) -->
   <div class="chat-header">
-    <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
-    <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
+    <div class="whisper-banner">
+      <div class="banner-container">
+        <div class="brand">
+          <div class="bubble-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <span class="wordmark">Whisper</span>
+        </div>
+        <div class="tagline">Anonymous · Instant</div>
+      </div>
+    </div>
   </div>
+
+  <!-- MESSAGES CONTAINER -->
   <div id="messagesContainer" class="space-y-2"></div>
+
+  <!-- INPUT AREA -->
   <div class="input-container">
     <div class="flex gap-2 max-w-3xl mx-auto">
       <button id="emojiBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">😊</button>
@@ -133,7 +218,7 @@
     </div>
   </div>
 
-  <!-- Progress bar container (hidden initially) -->
+  <!-- PROGRESS BAR CONTAINER (hidden by default) -->
   <div id="uploadProgressContainer" class="hidden fixed bottom-24 left-4 right-4 bg-gray-800/90 backdrop-blur-sm rounded-xl p-3 shadow-lg z-50 max-w-md mx-auto">
     <div class="flex justify-between items-center mb-2">
       <span class="text-sm text-white">Uploading...</span>
