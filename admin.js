@@ -13,9 +13,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     return req.session && req.session.authenticated === true;
   }
 
+  // ---- Admin dashboard (HTML) ----
   app.get('/admin', (req, res) => {
     if (isAuthenticated(req)) {
-      const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
+      const initialUserList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -44,15 +45,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
               <div style="flex: 2;">
                 <h2>📨 Recent Messages <span id="messageCount">(0)</span></h2>
-                <div id="messageList" style="max-height: 400px; overflow-y: auto;">
-                  Loading...
-                </div>
+                <div id="messageList" style="max-height: 400px; overflow-y: auto;">Loading...</div>
               </div>
               <div style="flex: 1;">
-                <h2>👥 Users (<span id="userCount">${userList.length}</span>)</h2>
-                <div id="userList" style="max-height: 400px; overflow-y: auto;">
-                  ${userList.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('')}
-                </div>
+                <h2>👥 Users (<span id="userCount">${initialUserList.length}</span>)</h2>
+                <div id="userList" style="max-height: 400px; overflow-y: auto;">${renderUserListHtml(initialUserList)}</div>
               </div>
             </div>
             <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
@@ -60,9 +57,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               <input type="text" id="broadcastText" placeholder="System message to all users" required>
               <button type="submit">Send Broadcast</button>
             </form>
-            <div style="margin-top: 2rem;">
-              <a href="/admin/logout" style="color: #f87171;">Logout</a>
-            </div>
+            <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
           </div>
 
           <script>
@@ -71,8 +66,21 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             const broadcastForm = document.getElementById('broadcastForm');
             const broadcastInput = document.getElementById('broadcastText');
             const messageCountSpan = document.getElementById('messageCount');
+            const userListDiv = document.getElementById('userList');
+            const userCountSpan = document.getElementById('userCount');
 
-            // Function to render messages (initial load and updates)
+            function renderUserListHtml(users) {
+              if (!users.length) return '<p>No users online.</p>';
+              return users.map(u => \`
+                <div><img src="\${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>\${escapeHtml(u.name)}</strong><br><small>\${u.id}</small></div><hr>
+              \`).join('');
+            }
+
+            function updateUserList(users) {
+              userListDiv.innerHTML = renderUserListHtml(users);
+              userCountSpan.innerText = users.length;
+            }
+
             function renderMessages(messages) {
               if (messages.length === 0) {
                 messageListDiv.innerHTML = '<p>No messages yet.</p>';
@@ -87,14 +95,17 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                 </div>
               \`).join('');
               messageListDiv.innerHTML = html;
-              // Attach delete event listeners to each button
+              // Attach delete handlers
               document.querySelectorAll('.delete-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                   const msgId = btn.getAttribute('data-id');
+                  if (!msgId || msgId === 'undefined') {
+                    alert('Cannot delete: message has no ID (old message).');
+                    return;
+                  }
                   if (confirm('Delete this message?')) {
                     const res = await fetch(\`/admin/delete-message/\${msgId}\`, { method: 'POST' });
                     if (res.ok) {
-                      // Remove from DOM
                       const msgDiv = document.querySelector(\`.message-item[data-message-id="\${msgId}"]\`);
                       if (msgDiv) msgDiv.remove();
                     } else {
@@ -105,9 +116,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               });
             }
 
-            // Helper escape
             function escapeHtml(str) {
-              return str.replace(/[&<>]/g, (m) => {
+              return str.replace(/[&<>]/g, m => {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
                 if (m === '>') return '&gt;';
@@ -115,26 +125,19 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               });
             }
 
-            // Load initial messages
-            fetch('/admin/api/messages')
-              .then(res => res.json())
-              .then(messages => renderMessages(messages));
+            // --- Initial data load ---
+            fetch('/admin/api/messages').then(r => r.json()).then(msgs => renderMessages(msgs));
+            fetch('/admin/api/users').then(r => r.json()).then(users => updateUserList(users)).catch(() => {});
 
-            // Listen for new messages
-            socket.on('chat message', (msg) => {
-              // Fetch updated message list
-              fetch('/admin/api/messages')
-                .then(res => res.json())
-                .then(messages => renderMessages(messages));
-            });
-
-            // Listen for message deletions
+            // --- Real-time updates ---
+            socket.on('user list', (users) => updateUserList(users));
+            socket.on('chat message', () => fetch('/admin/api/messages').then(r => r.json()).then(msgs => renderMessages(msgs)));
             socket.on('message deleted', (data) => {
               const msgDiv = document.querySelector(\`.message-item[data-message-id="\${data.id}"]\`);
               if (msgDiv) msgDiv.remove();
             });
 
-            // Broadcast form submission
+            // --- Broadcast ---
             broadcastForm.addEventListener('submit', async (e) => {
               e.preventDefault();
               const text = broadcastInput.value.trim();
@@ -144,18 +147,15 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: \`broadcastText=\${encodeURIComponent(text)}\`
               });
-              if (res.ok) {
-                broadcastInput.value = '';
-                alert('Broadcast sent');
-              } else {
-                alert('Broadcast failed');
-              }
+              if (res.ok) { broadcastInput.value = ''; alert('Broadcast sent'); }
+              else alert('Broadcast failed');
             });
           </script>
         </body>
         </html>
       `);
     } else {
+      // ---- Login page ----
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -186,6 +186,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
+  // ---- Authentication routes ----
   app.post('/admin/login', (req, res) => {
     const { passcode } = req.body;
     if (passcode === ADMIN_PASSCODE) {
@@ -201,12 +202,19 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     res.redirect('/admin');
   });
 
-  // API endpoint for messages
+  // ---- API endpoints ----
   app.get('/admin/api/messages', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
     res.json(messages.slice(-50));
   });
 
+  app.get('/admin/api/users', (req, res) => {
+    if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+    const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
+    res.json(userList);
+  });
+
+  // ---- Broadcast ----
   app.post('/admin/broadcast', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const broadcastText = req.body.broadcastText?.trim();
@@ -217,7 +225,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     res.redirect('/admin');
   });
 
-  // Delete message endpoint
+  // ---- Delete message endpoint ----
   app.post('/admin/delete-message/:id', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const messageId = req.params.id;
@@ -228,8 +236,23 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
       console.log(`🗑️ Admin deleted message ${messageId}`);
       res.status(200).send('OK');
     } else {
+      console.log(`❌ Delete failed: message ${messageId} not found`);
       res.status(404).send('Message not found');
     }
+  });
+}
+
+function renderUserListHtml(users) {
+  if (!users.length) return '<p>No users online.</p>';
+  return users.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('');
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>]/g, (m) => {
+    if (m === '&') return '&amp;';
+    if (m === '<') return '&lt;';
+    if (m === '>') return '&gt;';
+    return m;
   });
 }
 
