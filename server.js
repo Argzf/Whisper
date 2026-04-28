@@ -11,14 +11,12 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(path.join(__dirname)));
 
-// Webhook for chat messages (required)
+// Webhooks
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 if (!WEBHOOK_URL) {
   console.error('❌ Missing DISCORD_WEBHOOK_URL in .env');
   process.exit(1);
 }
-
-// Webhook for join logs (optional)
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 
 // Persistent storage
@@ -28,38 +26,34 @@ const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 let takenNames = new Set();
 let userMappings = {};
 
+// Load data from disk (synchronous)
 function loadData() {
   try {
     if (fs.existsSync(TAKEN_NAMES_FILE)) {
       const arr = JSON.parse(fs.readFileSync(TAKEN_NAMES_FILE, 'utf8'));
       takenNames = new Set(arr);
-      console.log(`✅ Loaded ${takenNames.size} taken names`);
+      console.log(`✅ Loaded ${takenNames.size} taken names from disk`);
     }
     if (fs.existsSync(USER_MAPPINGS_FILE)) {
       userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
-      console.log(`✅ Loaded ${Object.keys(userMappings).length} user mappings`);
+      console.log(`✅ Loaded ${Object.keys(userMappings).length} user mappings from disk`);
+    } else {
+      console.log(`⚠️ ${USER_MAPPINGS_FILE} not found, starting empty`);
     }
   } catch (e) { console.error('Failed to load data', e); }
 }
 
 function saveTakenNames() {
   fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2));
+  console.log(`💾 Saved ${takenNames.size} taken names`);
 }
 
 function saveUserMappings() {
   fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
+  console.log(`💾 Saved ${Object.keys(userMappings).length} user mappings`);
 }
 
-// Reload mapping from disk (used before each identify to avoid memory staleness)
-function reloadUserMappings() {
-  try {
-    if (fs.existsSync(USER_MAPPINGS_FILE)) {
-      userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
-      console.log(`🔄 Reloaded user mappings: ${Object.keys(userMappings).length} entries`);
-    }
-  } catch (e) { console.error('Reload failed', e); }
-}
-
+// Initial load
 loadData();
 
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
@@ -146,10 +140,10 @@ io.on('connection', (socket) => {
   console.log('🔌 New socket connection');
 
   socket.on('identify', (storedUserId, callback) => {
-    console.log(`🆔 Identify called with storedUserId: ${storedUserId}`);
-
-    // Reload mappings from disk to guarantee we have the latest data
-    reloadUserMappings();
+    console.log(`🆔 Identify called with storedUserId: ${storedUserId} (type: ${typeof storedUserId})`);
+    
+    // Log current mapping keys for debugging
+    console.log(`📋 Current user mapping keys: ${Object.keys(userMappings).join(', ') || '(none)'}`);
 
     let userId = storedUserId;
     let name, avatar;
@@ -161,12 +155,14 @@ io.on('connection', (socket) => {
       userId = storedUserId;
       console.log(`✅ Returning existing user: ${name} (${userId})`);
     } else {
+      // No existing mapping – create new identity
       userId = crypto.randomUUID();
       name = generateUniqueName();
       avatar = getRandomAvatar();
       userMappings[userId] = { name, avatar };
-      saveUserMappings();
+      saveUserMappings();   // immediately persist
       console.log(`🆕 Created new user: ${name} (${userId})`);
+      console.log(`💾 New mapping written to disk`);
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
