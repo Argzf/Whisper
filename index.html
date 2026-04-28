@@ -41,7 +41,6 @@
       overflow: hidden;
     }
     
-    /* Header – subtle blur, low opacity */
     .chat-header {
       background: rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(12px);
@@ -50,7 +49,6 @@
       flex-shrink: 0;
     }
     
-    /* Messages container – fully transparent, lets gradient through */
     #messagesContainer {
       flex: 1;
       overflow-y: auto;
@@ -58,7 +56,6 @@
       -webkit-overflow-scrolling: touch;
     }
     
-    /* Bubbles – glass effect with opacity */
     .message:not(.own) .message-bubble {
       background: rgba(30, 41, 59, 0.7);
       backdrop-filter: blur(4px);
@@ -79,13 +76,11 @@
       transition: all 0.1s ease;
     }
     
-    /* Scrollbar – using indigo */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: #818CF8; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #A5B4FC; }
     
-    /* Input container – very light glass */
     .input-container {
       background: rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(8px);
@@ -94,7 +89,6 @@
       flex-shrink: 0;
     }
     
-    /* Input field – semi‑transparent dark */
     input {
       background: rgba(0, 0, 0, 0.5) !important;
       border-color: rgba(255, 255, 255, 0.2) !important;
@@ -106,7 +100,6 @@
       border-color: #A5B4FC !important;
     }
     
-    /* Send button gradient (slightly darker to match) */
     .send-btn {
       background: linear-gradient(135deg, #4f46e5, #6366f1);
       transition: all 0.2s;
@@ -116,7 +109,6 @@
       transform: scale(0.98);
     }
     
-    /* Fix text colors for names/timestamps */
     .text-gray-400 { color: #cbd5e1 !important; }
     .text-gray-500 { color: #94a3b8 !important; }
     .text-gray-300 { color: #e2e8f0 !important; }
@@ -147,11 +139,9 @@
     let currentUserName = null;
     let isReady = false;
 
-    // Always send whatever ID is in localStorage (may be stale)
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
       currentUserName = data.name;
-      // --- CRITICAL FIX: always update localStorage with the ID returned by the server ---
       localStorage.setItem('whisper_user_id', data.userId);
       isReady = true;
       socket.emit('load history');
@@ -180,6 +170,13 @@
       if (!isReady) return;
       appendMessage(msg);
       safeNotify(msg.senderName, msg.text);
+    });
+
+    // ***** NEW: Handle system messages (broadcasts) *****
+    socket.on('system message', (data) => {
+      if (!isReady) return;
+      appendSystemMessage(data.text);
+      safeNotify('📢 System', data.text);
     });
 
     function appendMessage(msg) {
@@ -212,6 +209,14 @@
         contentWrapper.appendChild(timeSpan);
       }
       div.appendChild(contentWrapper);
+      messagesContainer.appendChild(div);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function appendSystemMessage(text) {
+      const div = document.createElement('div');
+      div.className = 'text-center text-xs text-gray-400 bg-gray-800/50 rounded-full px-3 py-1 w-fit mx-auto my-1';
+      div.innerText = text;
       messagesContainer.appendChild(div);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
