@@ -17,16 +17,12 @@
     #messagesContainer { flex: 1; overflow-y: auto; padding: 1rem; -webkit-overflow-scrolling: touch; }
     .input-container { flex-shrink: 0; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); padding: 0.75rem; }
     .chat-header { flex-shrink: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 0.75rem 1.25rem; }
-    .debug { font-size: 0.65rem; color: #aaa; margin-top: 4px; }
   </style>
 </head>
 <body>
   <div class="chat-header">
-    <div>
-      <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
-      <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
-      <div id="debugInfo" class="debug"></div>
-    </div>
+    <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
+    <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
   </div>
   <div id="messagesContainer" class="space-y-2"></div>
   <div class="input-container">
@@ -43,23 +39,16 @@
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
-    const debugDiv = document.getElementById('debugInfo');
 
     let currentUserName = null;
     let isReady = false;
 
+    // Always send whatever ID is in localStorage (may be stale)
     let storedId = localStorage.getItem('whisper_user_id');
-    debugDiv.innerHTML = `Stored ID: ${storedId || 'none'}<br>`;
-
     socket.emit('identify', storedId, (data) => {
       currentUserName = data.name;
-      debugDiv.innerHTML += `Server assigned: ${data.name} (${data.userId})`;
-      if (!storedId) {
-        localStorage.setItem('whisper_user_id', data.userId);
-        debugDiv.innerHTML += `<br>💾 Saved new userId: ${data.userId}`;
-      } else {
-        debugDiv.innerHTML += `<br>♻️ Using existing userId: ${data.userId}`;
-      }
+      // --- CRITICAL FIX: always update localStorage with the ID returned by the server ---
+      localStorage.setItem('whisper_user_id', data.userId);
       isReady = true;
       socket.emit('load history');
     });
