@@ -34,6 +34,9 @@
   </div>
 
   <script>
+    // ------------------------------------------------------------
+    //  CORE CHAT LOGIC (exactly the same as the working version)
+    // ------------------------------------------------------------
     const socket = io();
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('messageInput');
@@ -41,42 +44,6 @@
 
     let currentUserName = null;
     let isReady = false;
-
-    // --- Notifications (optional, fails safely) ---
-    let notificationsEnabled = false;
-    let pageVisible = true;
-
-    function requestNotificationPermission() {
-      if (typeof Notification === 'undefined') return Promise.resolve(false);
-      if (Notification.permission === 'granted') {
-        notificationsEnabled = true;
-        return Promise.resolve(true);
-      }
-      if (Notification.permission !== 'denied') {
-        return Notification.requestPermission().then(perm => {
-          notificationsEnabled = (perm === 'granted');
-          return notificationsEnabled;
-        }).catch(() => false);
-      }
-      return Promise.resolve(false);
-    }
-
-    function showNotification(senderName, messageText) {
-      if (typeof Notification === 'undefined') return;
-      if (!notificationsEnabled || pageVisible) return;
-      if (senderName === currentUserName) return;
-      new Notification(`💬 ${senderName}`, {
-        body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
-        icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
-        silent: false,
-      });
-    }
-
-    document.addEventListener('visibilitychange', () => {
-      pageVisible = !document.hidden;
-      if (pageVisible && isReady) socket.emit('load history');
-    });
-    // --- End notifications ---
 
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
@@ -91,6 +58,10 @@
       socket.emit('load history');
     }
 
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshMessages();
+    });
+
     socket.on('connect', () => {
       if (isReady) refreshMessages();
     });
@@ -104,7 +75,8 @@
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
-      showNotification(msg.senderName, msg.text);
+      // --- NOTIFICATION (safe, no‑break) ---
+      safeNotify(msg.senderName, msg.text);
     });
 
     function appendMessage(msg) {
@@ -145,10 +117,8 @@
       if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
-      // Request notification permission on first send (safe, does not block emit)
-      if (typeof Notification !== 'undefined' && !notificationsEnabled && Notification.permission === 'default') {
-        requestNotificationPermission().catch(console.error);
-      }
+      // --- Request permission on first send (if supported) ---
+      requestNotificationPermissionSafe();
       socket.emit('chat message', { text });
       messageInput.value = '';
       messageInput.focus();
@@ -158,6 +128,43 @@
     messageInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
+
+    // ------------------------------------------------------------
+    //  SAFE NOTIFICATION CODE (all errors caught, does not block chat)
+    // ------------------------------------------------------------
+    let notificationsEnabled = false;
+    let pageVisible = true;
+
+    // Visibility detection (non‑critical)
+    document.addEventListener('visibilitychange', () => {
+      pageVisible = !document.hidden;
+    });
+
+    function requestNotificationPermissionSafe() {
+      try {
+        if (typeof Notification === 'undefined') return;
+        if (Notification.permission === 'granted') {
+          notificationsEnabled = true;
+        } else if (Notification.permission !== 'denied' && !notificationsEnabled) {
+          Notification.requestPermission().then(perm => {
+            notificationsEnabled = (perm === 'granted');
+          }).catch(() => {});
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    function safeNotify(senderName, messageText) {
+      try {
+        if (typeof Notification === 'undefined') return;
+        if (!notificationsEnabled || pageVisible) return;
+        if (senderName === currentUserName) return;
+        new Notification(`💬 ${senderName}`, {
+          body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
+          icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
+          silent: false,
+        });
+      } catch (e) { /* ignore */ }
+    }
   </script>
 </body>
 </html>
