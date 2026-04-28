@@ -19,7 +19,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     if (isAuthenticated(req)) {
       const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
       const recentMessages = messages.slice(-50).reverse();
-      res.send(`
+      // Build HTML using string concatenation to avoid nested backticks
+      let html = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -59,32 +60,42 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
               <div style="flex: 2;">
                 <h2>📨 Recent Messages (last 50)</h2>
                 <div id="messageList">
-                  ${recentMessages.map(m => {
-                    let fileHtml = '';
-                    if (m.file) {
-                      if (m.file.type && m.file.type.startsWith('image/')) {
-                        fileHtml = `<div class="file-preview"><img src="${m.file.url}" alt="thumbnail"> <a href="${m.file.url}" target="_blank">${escapeHtml(m.file.name)}</a></div>`;
-                      } else {
-                        fileHtml = `<div class="file-preview">📎 <a href="${m.file.url}" target="_blank">${escapeHtml(m.file.name)}</a></div>`;
-                      }
-                    }
-                    return `
-                      <div class="message-item" data-message-id="${m.id}">
-                        <div class="message-content">
-                          <div><strong>${escapeHtml(m.senderName)}</strong> (${new Date(m.timestamp).toLocaleString()}): ${escapeHtml(m.text || '')}</div>
-                          ${fileHtml}
-                        </div>
-                        <button class="delete-btn" data-id="${m.id}">Delete</button>
-                      </div>
-                    `;
-                  }).join('')}
-                  ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : ''}
+      `;
+      // Add messages
+      if (recentMessages.length === 0) {
+        html += '<p>No messages yet.</p>';
+      } else {
+        for (const m of recentMessages) {
+          let fileHtml = '';
+          if (m.file) {
+            if (m.file.type && m.file.type.startsWith('image/')) {
+              fileHtml = `<div class="file-preview"><img src="${m.file.url}" alt="thumbnail"> <a href="${m.file.url}" target="_blank">${escapeHtml(m.file.name)}</a></div>`;
+            } else {
+              fileHtml = `<div class="file-preview">📎 <a href="${m.file.url}" target="_blank">${escapeHtml(m.file.name)}</a></div>`;
+            }
+          }
+          html += `
+            <div class="message-item" data-message-id="${m.id}">
+              <div class="message-content">
+                <div><strong>${escapeHtml(m.senderName)}</strong> (${new Date(m.timestamp).toLocaleString()}): ${escapeHtml(m.text || '')}</div>
+                ${fileHtml}
+              </div>
+              <button class="delete-btn" data-id="${m.id}">Delete</button>
+            </div>
+          `;
+        }
+      }
+      html += `
                 </div>
               </div>
               <div style="flex: 1;">
                 <h2>👥 Users (${userList.length})</h2>
                 <div id="userList">
-                  ${userList.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('')}
+      `;
+      for (const u of userList) {
+        html += `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`;
+      }
+      html += `
                 </div>
               </div>
             </div>
@@ -186,15 +197,16 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                   window.location.href = '/chat';
                 }, 1500);
               } else {
-                document.getElementById('identityStatus').innerHTML = `<span style="color: #f87171;">✗ ${data.error || 'Failed'}</span>`;
+                document.getElementById('identityStatus').innerHTML = '<span style="color: #f87171;">✗ ' + (data.error || 'Failed') + '</span>';
               }
             });
           </script>
         </body>
         </html>
-      `);
+      `;
+      res.send(html);
     } else {
-      // Login page (unchanged)
+      // Login page
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -275,7 +287,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
   app.post('/admin/purge-messages', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
-    // Delete all files
     for (const msg of messages) {
       if (msg.file && msg.file.url) {
         const filePath = path.join(__dirname, msg.file.url);
@@ -290,7 +301,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     res.status(200).send('OK');
   });
 
-  // Change identity endpoint
   app.post('/admin/change-identity', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
     const { preset, userId } = req.body;
@@ -304,7 +314,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     const newIdentity = presets[preset];
     if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
 
-    // Check if name is already taken by another user
+    // Check if name already taken by another user
     const existing = Object.entries(userMappings).find(([id, data]) => data.name === newIdentity.name && id !== userId);
     if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
@@ -312,13 +322,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     userMappings[userId] = { name: newIdentity.name, avatar: newIdentity.avatar };
     saveUserMappings();
 
-    // Add new name to takenNames set to prevent reuse
+    // Add to takenNames to prevent reuse
     if (!takenNames.has(newIdentity.name)) {
       takenNames.add(newIdentity.name);
       saveTakenNames();
     }
 
-    // Broadcast to all sockets of this user to reload identity
+    // Broadcast reload event
     io.emit('force-reload-identity', { userId });
     res.json({ success: true });
   });
