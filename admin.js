@@ -1,4 +1,6 @@
-// admin.js
+const fs = require('fs');
+const path = require('path');
+
 function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
   function escapeHtml(str) {
     return str.replace(/[&<>]/g, (m) => {
@@ -87,7 +89,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
           </div>
           <script>
-            // Delete handlers will be attached after DOM loads
+            // Attach delete handlers
             document.querySelectorAll('.delete-btn').forEach(btn => {
               btn.addEventListener('click', async () => {
                 const msgId = btn.getAttribute('data-id');
@@ -193,8 +195,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
       if (msg.file && msg.file.url) {
         const filePath = path.join(__dirname, msg.file.url);
         fs.unlink(filePath, (err) => {
-          if (err) console.error(`Failed to delete file ${filePath}:`, err);
-          else console.log(`🗑️ Deleted file: ${filePath}`);
+          if (err && err.code !== 'ENOENT') {
+            console.error(`Failed to delete file ${filePath}:`, err);
+          } else if (!err) {
+            console.log(`🗑️ Deleted file: ${filePath}`);
+          }
         });
       }
       messages.splice(index, 1);
