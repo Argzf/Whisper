@@ -19,29 +19,44 @@ if (!WEBHOOK_URL) {
 }
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 
-// Persistent storage files
+// Storage files
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
+
+// Initialize files if they don't exist
+if (!fs.existsSync(TAKEN_NAMES_FILE)) {
+  fs.writeFileSync(TAKEN_NAMES_FILE, '[]');
+  console.log('📄 Created takenNames.json');
+}
+if (!fs.existsSync(USER_MAPPINGS_FILE)) {
+  fs.writeFileSync(USER_MAPPINGS_FILE, '{}');
+  console.log('📄 Created userMappings.json');
+}
 
 let takenNames = new Set();
 let userMappings = {};
 
 function loadData() {
   try {
-    if (fs.existsSync(TAKEN_NAMES_FILE)) {
-      const arr = JSON.parse(fs.readFileSync(TAKEN_NAMES_FILE, 'utf8'));
-      takenNames = new Set(arr);
-    }
-    if (fs.existsSync(USER_MAPPINGS_FILE)) {
-      userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
-    }
-  } catch (e) { console.error('Failed to load data', e); }
+    const takenRaw = fs.readFileSync(TAKEN_NAMES_FILE, 'utf8');
+    takenNames = new Set(JSON.parse(takenRaw));
+    const mappingRaw = fs.readFileSync(USER_MAPPINGS_FILE, 'utf8');
+    userMappings = JSON.parse(mappingRaw);
+    console.log(`✅ Loaded ${takenNames.size} taken names, ${Object.keys(userMappings).length} user mappings`);
+  } catch (e) {
+    console.error('Failed to load data', e);
+  }
 }
-function saveTakenNames() { fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2)); }
-function saveUserMappings() { fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2)); }
+function saveTakenNames() {
+  fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2));
+}
+function saveUserMappings() {
+  fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
+}
 
-loadData();  // load once at startup
+loadData(); // load once at startup
 
+// Names and avatars (unchanged)
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
 const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog', 'Grizzly', 'Bear', 'Cow', 'Lego', 'Brick'];
 const avatars = [
@@ -77,11 +92,9 @@ function generateUniqueName() {
   }
 }
 
-function getRandomAvatar() {
-  return avatars[Math.floor(Math.random() * avatars.length)];
-}
+function getRandomAvatar() { return avatars[Math.floor(Math.random() * avatars.length)]; }
 
-// Send chat message to Discord
+// Discord sending functions (unchanged)
 async function sendToDiscord(name, avatar, text) {
   try {
     await fetch(WEBHOOK_URL, {
@@ -90,12 +103,9 @@ async function sendToDiscord(name, avatar, text) {
       body: JSON.stringify({ content: text, username: name, avatar_url: avatar })
     });
     console.log(`📨 Discord: ${name} said "${text}"`);
-  } catch (err) {
-    console.error('Discord webhook failed', err);
-  }
+  } catch (err) { console.error('Discord webhook failed', err); }
 }
 
-// Send join log to Discord (separate webhook, no cooldown)
 async function sendJoinLog(name, avatar, userId) {
   if (!LOG_WEBHOOK_URL) return;
   const embed = {
@@ -117,18 +127,23 @@ async function sendJoinLog(name, avatar, userId) {
       body: JSON.stringify({ embeds: [embed] })
     });
     console.log(`📢 Join log sent for ${name}`);
-  } catch (err) {
-    console.error('Join log failed', err);
-  }
+  } catch (err) { console.error('Join log failed', err); }
 }
 
-// Message history
 let messages = [];
 
+// Debug endpoint to inspect current mappings (optional, not needed for production)
+app.get('/debug/mappings', (req, res) => {
+  res.json(userMappings);
+});
+
 io.on('connection', (socket) => {
-  console.log('a user connected');
+  console.log('🔌 New connection');
 
   socket.on('identify', (storedUserId, callback) => {
+    console.log(`🆔 Identify called with storedUserId = ${storedUserId}`);
+    console.log(`📋 Current userMappings keys: ${Object.keys(userMappings).join(', ') || '(none)'}`);
+
     let userId = storedUserId;
     let name, avatar;
 
@@ -137,14 +152,15 @@ io.on('connection', (socket) => {
       name = identity.name;
       avatar = identity.avatar;
       userId = storedUserId;
-      console.log(`Returning user: ${name} (${userId})`);
+      console.log(`✅ Returning existing user: ${name} (${userId})`);
     } else {
       userId = crypto.randomUUID();
       name = generateUniqueName();
       avatar = getRandomAvatar();
       userMappings[userId] = { name, avatar };
       saveUserMappings();
-      console.log(`New user: ${name} (${userId})`);
+      console.log(`🆕 Created new user: ${name} (${userId})`);
+      console.log(`💾 Saved mapping, now ${Object.keys(userMappings).length} total users.`);
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
@@ -171,7 +187,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('user disconnected');
+    console.log('🔌 Disconnected');
   });
 });
 
