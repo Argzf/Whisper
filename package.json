@@ -1,14 +1,14 @@
 {
-  "name": "discord-contact-form",
+  "name": "anonymous-chat-with-discord-log",
   "version": "1.0.0",
-  "description": "Simple contact form that sends messages to Discord webhook",
+  "description": "Anonymous chatroom that logs messages to Discord with random names/avatars",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "dotenv": "^16.0.3",
-    "cors": "^2.8.5"
+    "socket.io": "^4.6.1",
+    "dotenv": "^16.0.3"
   }
 }
