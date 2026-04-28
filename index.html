@@ -42,27 +42,27 @@
     let currentUserName = null;
     let isReady = false;
 
-    // --- NOTIFICATION ADDITIONS START ---
+    // --- Notifications (optional, fails safely) ---
     let notificationsEnabled = false;
     let pageVisible = true;
 
-    // Request permission (only called after user gesture)
-    async function requestNotificationPermission() {
-      if (!('Notification' in window)) return false;
+    function requestNotificationPermission() {
+      if (typeof Notification === 'undefined') return Promise.resolve(false);
       if (Notification.permission === 'granted') {
         notificationsEnabled = true;
-        return true;
+        return Promise.resolve(true);
       }
       if (Notification.permission !== 'denied') {
-        const perm = await Notification.requestPermission();
-        notificationsEnabled = (perm === 'granted');
-        return notificationsEnabled;
+        return Notification.requestPermission().then(perm => {
+          notificationsEnabled = (perm === 'granted');
+          return notificationsEnabled;
+        }).catch(() => false);
       }
-      return false;
+      return Promise.resolve(false);
     }
 
-    // Show a notification (only if tab not visible and not own message)
     function showNotification(senderName, messageText) {
+      if (typeof Notification === 'undefined') return;
       if (!notificationsEnabled || pageVisible) return;
       if (senderName === currentUserName) return;
       new Notification(`💬 ${senderName}`, {
@@ -72,12 +72,11 @@
       });
     }
 
-    // Track page visibility
     document.addEventListener('visibilitychange', () => {
       pageVisible = !document.hidden;
-      if (pageVisible && isReady) socket.emit('load history'); // refresh on return
+      if (pageVisible && isReady) socket.emit('load history');
     });
-    // --- NOTIFICATION ADDITIONS END ---
+    // --- End notifications ---
 
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
@@ -105,7 +104,6 @@
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
-      // --- NOTIFICATION ADDITION ---
       showNotification(msg.senderName, msg.text);
     });
 
@@ -147,9 +145,9 @@
       if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
-      // --- NOTIFICATION ADDITION: request permission on first send (user gesture) ---
-      if (!notificationsEnabled && Notification && Notification.permission === 'default') {
-        requestNotificationPermission();
+      // Request notification permission on first send (safe, does not block emit)
+      if (typeof Notification !== 'undefined' && !notificationsEnabled && Notification.permission === 'default') {
+        requestNotificationPermission().catch(console.error);
       }
       socket.emit('chat message', { text });
       messageInput.value = '';
