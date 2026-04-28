@@ -16,14 +16,14 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Helper to build absolute URL from request (handles proxies)
+// Helper to build absolute URL from request (for Discord file links)
 function getAbsoluteUrl(req, relativePath) {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.get('host');
   return `${protocol}://${host}${relativePath}`;
 }
 
-// File upload configuration with random filenames
+// File upload configuration
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
@@ -37,17 +37,15 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB max
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// Serve uploaded files statically
 app.use('/uploads', express.static(uploadsDir, {
   maxAge: '12d',
   etag: true,
   lastModified: true
 }));
 
-// File upload endpoint – returns absolute URL
 app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const relativePath = `/uploads/${req.file.filename}`;
@@ -171,7 +169,6 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
   };
   let description = text || '';
   if (file) {
-    // file.url is already absolute (constructed during upload)
     if (file.type && file.type.startsWith('image/')) {
       embed.image = { url: file.url };
       description += description ? `\n\n[🖼️ View full size](${file.url})` : `[🖼️ View full size](${file.url})`;
@@ -267,10 +264,20 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => console.log('🔌 Disconnected'));
 });
 
+// ---- Serve pages ----
+// Homepage
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+// Chat interface
+app.get('/chat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'chat.html'));
+});
+
 // Mount admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE);
 
-// 404 handler
+// 404 handler – must be last
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
