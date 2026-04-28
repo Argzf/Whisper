@@ -24,37 +24,123 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
         <html>
         <head>
           <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
           <title>Whisper – Admin</title>
           <link rel="icon" type="image/svg+xml" href="/admin-favicon.svg">
           <style>
-            body { font-family: system-ui; background: #0a0c10; color: #eee; margin: 0; padding: 2rem; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+              background: #0a0c10;
+              color: #eee;
+              margin: 0;
+              padding: 1rem;
+            }
             h1, h2 { color: #818cf8; }
-            .message-item { background: #2d3748; padding: 0.5rem; border-radius: 12px; margin: 0.25rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-            .message-content { flex: 1; }
-            .file-preview { margin: 0.25rem 0 0 0; display: inline-block; background: #1e293b; border-radius: 8px; padding: 0.25rem 0.5rem; }
-            .file-preview img { max-width: 60px; max-height: 60px; border-radius: 6px; vertical-align: middle; margin-right: 0.5rem; }
-            .file-preview a { color: #818cf8; text-decoration: none; }
+            .container { max-width: 1400px; margin: 0 auto; }
+            .dashboard-grid {
+              display: flex;
+              gap: 1.5rem;
+              flex-wrap: wrap;
+            }
+            .messages-section {
+              flex: 2;
+              min-width: 0; /* avoid overflow */
+            }
+            .users-section {
+              flex: 1;
+              min-width: 200px;
+            }
+            .message-item {
+              background: #2d3748;
+              padding: 0.75rem;
+              border-radius: 12px;
+              margin: 0.5rem 0;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 1rem;
+              flex-wrap: wrap;
+            }
+            .message-content {
+              flex: 1;
+              word-break: break-word;
+            }
+            .file-preview {
+              margin: 0.5rem 0 0;
+              display: inline-block;
+              background: #1e293b;
+              border-radius: 8px;
+              padding: 0.25rem 0.5rem;
+              font-size: 0.85rem;
+            }
+            .file-preview img {
+              max-width: 60px;
+              max-height: 60px;
+              border-radius: 6px;
+              vertical-align: middle;
+              margin-right: 0.5rem;
+            }
+            .file-preview a {
+              color: #818cf8;
+              text-decoration: none;
+            }
             .file-preview a:hover { text-decoration: underline; }
-            input, button { padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
-            input { background: #2d3748; color: white; width: 100%; }
-            button { background: #6366f1; color: white; cursor: pointer; }
-            button:hover { background: #818cf8; }
-            .delete-btn { background: #ef4444; padding: 0.25rem 0.75rem; }
+            .delete-btn {
+              background: #ef4444;
+              padding: 0.4rem 0.8rem;
+              border-radius: 8px;
+              border: none;
+              color: white;
+              cursor: pointer;
+              font-size: 0.85rem;
+              flex-shrink: 0;
+            }
             .delete-btn:hover { background: #dc2626; }
-            .purge-btn { background: #dc2626; padding: 0.5rem 1rem; margin-left: 1rem; }
+            input, button {
+              padding: 0.6rem;
+              margin: 0.5rem 0;
+              border-radius: 8px;
+              border: none;
+              font-size: 1rem;
+            }
+            input {
+              background: #2d3748;
+              color: white;
+              width: 100%;
+            }
+            button {
+              background: #6366f1;
+              color: white;
+              cursor: pointer;
+            }
+            button:hover { background: #818cf8; }
+            .danger-zone {
+              margin-top: 2rem;
+              border-top: 1px solid #334155;
+              padding-top: 1.5rem;
+            }
+            .purge-btn {
+              background: #dc2626;
+              padding: 0.6rem 1.2rem;
+            }
             .purge-btn:hover { background: #b91c1c; }
-            .container { max-width: 1200px; margin: 0 auto; }
-            .admin-actions { display: flex; align-items: center; justify-content: flex-start; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+            @media (max-width: 768px) {
+              body { padding: 0.75rem; }
+              .dashboard-grid { flex-direction: column; }
+              .messages-section, .users-section { width: 100%; }
+              .message-item { flex-direction: column; align-items: stretch; }
+              .delete-btn { align-self: flex-end; margin-top: 0.5rem; }
+            }
           </style>
         </head>
         <body>
           <div class="container">
             <h1>🔐 Admin Dashboard</h1>
-            <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
-              <div style="flex: 2;">
+            <div class="dashboard-grid">
+              <div class="messages-section">
                 <h2>📨 Recent Messages (last 50)</h2>
-                <div id="messageList" style="max-height: 400px; overflow-y: auto;">
+                <div id="messageList">
                   ${recentMessages.map(m => {
                     let fileHtml = '';
                     if (m.file) {
@@ -77,30 +163,30 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                   ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : ''}
                 </div>
               </div>
-              <div style="flex: 1;">
+              <div class="users-section">
                 <h2>👥 Users (${userList.length})</h2>
-                <div style="max-height: 400px; overflow-y: auto;">
+                <div id="userList">
                   ${userList.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('')}
                 </div>
               </div>
             </div>
-            <div class="admin-actions">
-              <div>
-                <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
-                <form id="broadcastForm">
-                  <input type="text" id="broadcastText" placeholder="System message to all users" required>
-                  <button type="submit">Send Broadcast</button>
-                </form>
-              </div>
-              <div>
-                <h2 style="margin-top: 2rem;">⚠️ Danger Zone</h2>
-                <button id="purgeBtn" class="purge-btn">🗑️ Purge All Messages</button>
-              </div>
+            <div style="margin-top: 1.5rem;">
+              <h2>📢 Broadcast Message</h2>
+              <form id="broadcastForm">
+                <input type="text" id="broadcastText" placeholder="System message to all users" required>
+                <button type="submit">Send Broadcast</button>
+              </form>
             </div>
-            <div style="margin-top: 2rem;"><a href="/admin/logout" style="color: #f87171;">Logout</a></div>
+            <div class="danger-zone">
+              <h2>⚠️ Danger Zone</h2>
+              <button id="purgeBtn" class="purge-btn">Purge All Messages (cannot be undone)</button>
+            </div>
+            <div style="margin-top: 1.5rem;">
+              <a href="/admin/logout" style="color: #f87171;">Logout</a>
+            </div>
           </div>
           <script>
-            // Delete single message handlers
+            // Delete single message
             document.querySelectorAll('.delete-btn').forEach(btn => {
               btn.addEventListener('click', async () => {
                 const msgId = btn.getAttribute('data-id');
@@ -117,7 +203,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
               });
             });
 
-            // Broadcast form handler
+            // Broadcast
             document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
               e.preventDefault();
               const text = document.getElementById('broadcastText').value.trim();
@@ -137,13 +223,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
 
             // Purge all messages
             document.getElementById('purgeBtn').addEventListener('click', async () => {
-              if (confirm('⚠️ This will delete ALL messages and permanently remove all uploaded files. This action cannot be undone. Are you absolutely sure?')) {
-                const res = await fetch('/admin/purge', { method: 'POST' });
+              if (confirm('⚠️ ARE YOU SURE? This will delete ALL messages and ALL uploaded files. This action cannot be undone.')) {
+                const res = await fetch('/admin/purge-messages', { method: 'POST' });
                 if (res.ok) {
                   alert('All messages purged.');
-                  location.reload(); // Reload to refresh the list
+                  location.reload();
                 } else {
-                  alert('Purge failed.');
+                  alert('Purge failed');
                 }
               }
             });
@@ -152,6 +238,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
         </html>
       `);
     } else {
+      // Login page (unchanged)
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -182,6 +269,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
+  // ---- existing routes (login, logout, broadcast, delete-message) ----
   app.post('/admin/login', (req, res) => {
     const { passcode } = req.body;
     if (passcode === ADMIN_PASSCODE) {
@@ -209,7 +297,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
-  // Delete single message (with file deletion)
   app.post('/admin/delete-message/:id', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const messageId = req.params.id;
@@ -231,25 +318,21 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
-  // Purge all messages and delete all uploaded files
-  app.post('/admin/purge', (req, res) => {
+  // Purge all messages and files
+  app.post('/admin/purge-messages', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
-    // Delete all files in uploads folder
-    const uploadsDir = path.join(__dirname, 'uploads');
-    if (fs.existsSync(uploadsDir)) {
-      const files = fs.readdirSync(uploadsDir);
-      for (const file of files) {
-        const filePath = path.join(uploadsDir, file);
+    // Delete all files associated with messages
+    for (const msg of messages) {
+      if (msg.file && msg.file.url) {
+        const filePath = path.join(__dirname, msg.file.url);
         fs.unlink(filePath, (err) => {
-          if (err) console.error(`Failed to delete ${filePath}:`, err);
+          if (err && err.code !== 'ENOENT') console.error(`Failed to delete file ${filePath}:`, err);
         });
       }
-      console.log(`🗑️ Deleted ${files.length} files from uploads folder`);
     }
     // Clear messages array
     messages.length = 0;
-    // Notify all clients that messages have been purged
-    io.emit('system message', { text: '📢 Admin purged all messages.' });
+    io.emit('system message', { text: '📢 All messages have been purged by an admin.' });
     console.log('🗑️ Admin purged all messages');
     res.status(200).send('OK');
   });
