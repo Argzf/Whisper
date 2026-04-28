@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta name="theme-color" content="#475569">
   <title>Whisper</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -163,12 +164,12 @@
       pageVisible = !document.hidden;
     });
   </script>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('✅ Service Worker registered', reg))
-      .catch(err => console.error('❌ Service Worker registration failed', err));
-  }
-</script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('✅ Service Worker registered', reg))
+        .catch(err => console.error('❌ Service Worker registration failed', err));
+    }
+  </script>
 </body>
 </html>
