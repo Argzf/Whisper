@@ -16,7 +16,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
   app.get('/admin', (req, res) => {
     if (isAuthenticated(req)) {
       const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
-      const recentMessages = messages.slice(-50).reverse(); // most recent first
       res.send(`
         <!DOCTYPE html>
         <html>
@@ -25,6 +24,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>Whisper – Admin</title>
           <link rel="icon" type="image/svg+xml" href="/admin-favicon.svg">
+          <script src="/socket.io/socket.io.js"></script>
           <style>
             body { font-family: system-ui; background: #0a0c10; color: #eee; margin: 0; padding: 2rem; }
             h1, h2 { color: #818cf8; }
@@ -43,35 +43,115 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
             <h1>🔐 Admin Dashboard</h1>
             <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
               <div style="flex: 2;">
-                <h2>📨 Recent Messages (last 50)</h2>
-                <div style="max-height: 400px; overflow-y: auto;">
-                  ${recentMessages.map(m => `
-                    <div class="message-item">
-                      <div><strong>${escapeHtml(m.senderName)}</strong> (${new Date(m.timestamp).toLocaleString()}): ${escapeHtml(m.text)}</div>
-                      <form action="/admin/delete-message/${m.id}" method="POST" style="margin: 0;">
-                        <button type="submit" class="delete-btn">Delete</button>
-                      </form>
-                    </div>
-                  `).join('')}
-                  ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : ''}
+                <h2>📨 Recent Messages <span id="messageCount">(0)</span></h2>
+                <div id="messageList" style="max-height: 400px; overflow-y: auto;">
+                  Loading...
                 </div>
               </div>
               <div style="flex: 1;">
-                <h2>👥 Users (${userList.length})</h2>
-                <div style="max-height: 400px; overflow-y: auto;">
+                <h2>👥 Users (<span id="userCount">${userList.length}</span>)</h2>
+                <div id="userList" style="max-height: 400px; overflow-y: auto;">
                   ${userList.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('')}
                 </div>
               </div>
             </div>
             <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
-            <form action="/admin/broadcast" method="POST">
-              <input type="text" name="broadcastText" placeholder="System message to all users" required>
+            <form id="broadcastForm">
+              <input type="text" id="broadcastText" placeholder="System message to all users" required>
               <button type="submit">Send Broadcast</button>
             </form>
             <div style="margin-top: 2rem;">
               <a href="/admin/logout" style="color: #f87171;">Logout</a>
             </div>
           </div>
+
+          <script>
+            const socket = io();
+            const messageListDiv = document.getElementById('messageList');
+            const broadcastForm = document.getElementById('broadcastForm');
+            const broadcastInput = document.getElementById('broadcastText');
+            const messageCountSpan = document.getElementById('messageCount');
+
+            // Function to render messages (initial load and updates)
+            function renderMessages(messages) {
+              if (messages.length === 0) {
+                messageListDiv.innerHTML = '<p>No messages yet.</p>';
+                messageCountSpan.innerText = '(0)';
+                return;
+              }
+              messageCountSpan.innerText = \`(\${messages.length})\`;
+              const html = messages.slice().reverse().map(m => \`
+                <div class="message-item" data-message-id="\${m.id}">
+                  <div><strong>\${escapeHtml(m.senderName)}</strong> (\${new Date(m.timestamp).toLocaleString()}): \${escapeHtml(m.text)}</div>
+                  <button class="delete-btn" data-id="\${m.id}">Delete</button>
+                </div>
+              \`).join('');
+              messageListDiv.innerHTML = html;
+              // Attach delete event listeners to each button
+              document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                  const msgId = btn.getAttribute('data-id');
+                  if (confirm('Delete this message?')) {
+                    const res = await fetch(\`/admin/delete-message/\${msgId}\`, { method: 'POST' });
+                    if (res.ok) {
+                      // Remove from DOM
+                      const msgDiv = document.querySelector(\`.message-item[data-message-id="\${msgId}"]\`);
+                      if (msgDiv) msgDiv.remove();
+                    } else {
+                      alert('Delete failed');
+                    }
+                  }
+                });
+              });
+            }
+
+            // Helper escape
+            function escapeHtml(str) {
+              return str.replace(/[&<>]/g, (m) => {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+              });
+            }
+
+            // Load initial messages
+            fetch('/admin/api/messages')
+              .then(res => res.json())
+              .then(messages => renderMessages(messages));
+
+            // Listen for new messages
+            socket.on('chat message', (msg) => {
+              // Fetch updated message list
+              fetch('/admin/api/messages')
+                .then(res => res.json())
+                .then(messages => renderMessages(messages));
+            });
+
+            // Listen for message deletions
+            socket.on('message deleted', (data) => {
+              const msgDiv = document.querySelector(\`.message-item[data-message-id="\${data.id}"]\`);
+              if (msgDiv) msgDiv.remove();
+            });
+
+            // Broadcast form submission
+            broadcastForm.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const text = broadcastInput.value.trim();
+              if (!text) return;
+              const res = await fetch('/admin/broadcast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: \`broadcastText=\${encodeURIComponent(text)}\`
+              });
+              if (res.ok) {
+                broadcastInput.value = '';
+                alert('Broadcast sent');
+              } else {
+                alert('Broadcast failed');
+              }
+            });
+          </script>
         </body>
         </html>
       `);
@@ -121,6 +201,12 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     res.redirect('/admin');
   });
 
+  // API endpoint for messages
+  app.get('/admin/api/messages', (req, res) => {
+    if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+    res.json(messages.slice(-50));
+  });
+
   app.post('/admin/broadcast', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const broadcastText = req.body.broadcastText?.trim();
@@ -132,19 +218,18 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
   });
 
   // Delete message endpoint
-app.post('/admin/delete-message/:id', (req, res) => {
+  app.post('/admin/delete-message/:id', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const messageId = req.params.id;
-    console.log(`Attempting to delete message with ID: ${messageId}`);
     const index = messages.findIndex(m => m.id === messageId);
     if (index !== -1) {
-      const deleted = messages.splice(index, 1);
-      console.log(`🗑️ Admin deleted message: ${deleted[0].text} from ${deleted[0].senderName}`);
+      messages.splice(index, 1);
       io.emit('message deleted', { id: messageId });
+      console.log(`🗑️ Admin deleted message ${messageId}`);
+      res.status(200).send('OK');
     } else {
-      console.log(`❌ Message with ID ${messageId} not found. Available IDs: ${messages.map(m => m.id).join(', ')}`);
+      res.status(404).send('Message not found');
     }
-    res.redirect('/admin');
   });
 }
 
