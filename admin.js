@@ -308,26 +308,22 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     const presets = {
       Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
       ArGzf: { name: 'ArGzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-      Admin: { name: 'Admin', avatar: '/admin-favicon.svg' },
+      Admin: { name: 'Admin', avatar: 'https://randomuser.me/api/portraits/lego/8.jpg' },
     };
     const newIdentity = presets[preset];
     if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
 
-    // Check if name already taken by another user
     const existing = Object.entries(userMappings).find(([id, data]) => data.name === newIdentity.name && id !== userId);
     if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
-    // Update mapping
     userMappings[userId] = { name: newIdentity.name, avatar: newIdentity.avatar };
     saveUserMappings();
 
-    // Add to takenNames to prevent reuse
     if (!takenNames.has(newIdentity.name)) {
       takenNames.add(newIdentity.name);
       saveTakenNames();
     }
 
-    // Broadcast reload event
     io.emit('force-reload-identity', { userId });
     res.json({ success: true });
   });
