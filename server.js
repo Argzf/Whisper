@@ -39,8 +39,8 @@ function saveTakenNames() { fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Ar
 function saveUserMappings() { fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2)); }
 loadData();
 
-const adjectives = ['Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift'];
-const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog'];
+const adjectives = ['Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
+const nouns = ['Panda', 'Fox', 'Owl', 'Cat', 'Wolf', 'Koala', 'Raven', 'Falcon', 'Deer', 'Hedgehog', 'Grizzly', 'Bear', 'Cow', 'Lego', 'Brick'];
 const avatars = [
   'https://randomuser.me/api/portraits/lego/1.jpg',
   'https://randomuser.me/api/portraits/lego/2.jpg',
@@ -91,7 +91,8 @@ async function sendToDiscord(name, avatar, text) {
   }
 }
 
-let messages = []; // { text, timestamp }
+// Store messages with full sender info
+let messages = []; // { text, timestamp, senderName, senderAvatar }
 
 io.on('connection', (socket) => {
   console.log('a user connected');
@@ -125,7 +126,13 @@ io.on('connection', (socket) => {
   socket.on('chat message', async ({ text }) => {
     if (!socket.userIdentity) return;
     const { name, avatar } = socket.userIdentity;
-    const msg = { text, timestamp: new Date().toISOString() };
+    // Create message object WITH sender info
+    const msg = {
+      text,
+      timestamp: new Date().toISOString(),
+      senderName: name,
+      senderAvatar: avatar
+    };
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
