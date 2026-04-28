@@ -16,11 +16,19 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Ensure uploads folder exists
+// File upload configuration
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
-app.use('/uploads', express.static(uploadsDir));
-const upload = multer({ dest: uploadsDir });
+// Serve uploaded files with aggressive caching (1 year)
+app.use('/uploads', express.static(uploadsDir, {
+  maxAge: '12d',
+  etag: true,
+  lastModified: true
+}));
+const upload = multer({
+  dest: uploadsDir,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB max
+});
 
 // File upload endpoint
 app.post('/upload', upload.single('file'), (req, res) => {
@@ -46,7 +54,7 @@ if (!WEBHOOK_URL) {
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
 
-// Storage files for taken names and user mappings
+// Storage files
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 
@@ -131,24 +139,37 @@ function getClientIP(socket) {
   return socket.handshake.address;
 }
 
-async function sendToDiscord(name, avatar, text, ip) {
+// ---- Discord send for chat messages (embed with optional image) ----
+async function sendToDiscord(name, avatar, text, ip, file = null) {
   if (!WEBHOOK_URL) return;
   const embed = {
     author: { name, icon_url: avatar },
-    description: text,
+    description: text || '*sent a file*',
     timestamp: new Date().toISOString(),
     color: 0x5865F2
   };
+  // If an image file is attached, add it as an inline image
+  if (file && file.type && file.type.startsWith('image/')) {
+    embed.image = { url: file.url };
+  }
+  let payload = { embeds: [embed] };
+  // For non‑image files, we can't embed them; we add the URL in description.
+  if (file && !file.type.startsWith('image/')) {
+    embed.description += `\n📎 [${file.name}](${file.url})`;
+  } else if (file && file.type.startsWith('image/')) {
+    // Already added as image
+  }
   try {
     await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ embeds: [embed] })
+      body: JSON.stringify(payload)
     });
     console.log(`📨 Discord embed sent for ${name}`);
   } catch (err) { console.error('Discord webhook failed', err); }
 }
 
+// ---- Join log (unchanged) ----
 async function sendJoinLog(name, avatar, userId, ip) {
   if (!LOG_WEBHOOK_URL) return;
   const embed = {
@@ -217,8 +238,8 @@ io.on('connection', (socket) => {
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
-    if (msg.text) await sendToDiscord(name, avatar, msg.text, clientIP);
-    // For file messages, optionally send to Discord (skip or send "sent a file")
+    // Send to Discord with file info
+    await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
   });
 
   socket.on('disconnect', () => console.log('🔌 Disconnected'));
