@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const session = require('express-session');
+const multer = require('multer');
 const setupAdmin = require('./admin');
 
 const app = express();
@@ -14,6 +15,19 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Ensure uploads folder exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+app.use('/uploads', express.static(uploadsDir));
+const upload = multer({ dest: uploadsDir });
+
+// File upload endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ url: fileUrl, name: req.file.originalname, type: req.file.mimetype });
+});
 
 // Session for admin
 app.use(session({
@@ -32,11 +46,10 @@ if (!WEBHOOK_URL) {
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
 
-// Storage files
+// Storage files for taken names and user mappings
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 
-// Ensure files exist with valid JSON
 if (!fs.existsSync(TAKEN_NAMES_FILE)) fs.writeFileSync(TAKEN_NAMES_FILE, '[]');
 if (!fs.existsSync(USER_MAPPINGS_FILE)) fs.writeFileSync(USER_MAPPINGS_FILE, '{}');
 
@@ -161,7 +174,6 @@ async function sendJoinLog(name, avatar, userId, ip) {
   } catch (err) { console.error('Join log failed', err); }
 }
 
-// *** IMPORTANT: declare messages array before using it ***
 let messages = [];
 
 io.on('connection', (socket) => {
@@ -190,30 +202,32 @@ io.on('connection', (socket) => {
     socket.emit('load messages', messages);
   });
 
-  socket.on('chat message', async ({ text }) => {
+  socket.on('chat message', async (data) => {
     if (!socket.userIdentity) return;
     const { name, avatar } = socket.userIdentity;
     const clientIP = getClientIP(socket);
     const msg = {
       id: crypto.randomUUID(),
-      text,
+      text: data.text || '',
       timestamp: new Date().toISOString(),
       senderName: name,
-      senderAvatar: avatar
+      senderAvatar: avatar,
+      file: data.file || null
     };
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
-    await sendToDiscord(name, avatar, text, clientIP);
+    if (msg.text) await sendToDiscord(name, avatar, msg.text, clientIP);
+    // For file messages, optionally send to Discord (skip or send "sent a file")
   });
 
   socket.on('disconnect', () => console.log('🔌 Disconnected'));
 });
 
-// Mount admin panel (messages is now defined)
+// Mount admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE);
 
-// 404 handler – must be last
+// 404 handler
 app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, '404.html'));
 });
