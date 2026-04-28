@@ -21,10 +21,8 @@
 </head>
 <body>
   <div class="chat-header">
-    <div>
-      <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
-      <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
-    </div>
+    <h1 class="text-lg font-semibold tracking-wide text-white">✧ whisper room ✧</h1>
+    <p class="text-xs text-gray-300">your messages appear on the right – others see your name and avatar</p>
   </div>
   <div id="messagesContainer" class="space-y-2"></div>
   <div class="input-container">
@@ -43,36 +41,7 @@
 
     let currentUserName = null;
     let isReady = false;
-    let notificationsEnabled = false;
-    let pageVisible = true;
 
-    // Request notification permission on first message send (or on load – your choice)
-    async function requestNotifPermission() {
-      if (!('Notification' in window)) return false;
-      if (Notification.permission === 'granted') {
-        notificationsEnabled = true;
-        return true;
-      }
-      if (Notification.permission !== 'denied') {
-        const perm = await Notification.requestPermission();
-        notificationsEnabled = (perm === 'granted');
-        return notificationsEnabled;
-      }
-      return false;
-    }
-
-    // Show notification only if tab is hidden and not our own message
-    function notifyUser(senderName, messageText) {
-      if (!notificationsEnabled || pageVisible) return;
-      if (senderName === currentUserName) return;
-      new Notification(`💬 ${senderName}`, {
-        body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
-        icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
-        silent: false,
-      });
-    }
-
-    // Identify with server
     let storedId = localStorage.getItem('whisper_user_id');
     socket.emit('identify', storedId, (data) => {
       currentUserName = data.name;
@@ -81,18 +50,28 @@
       socket.emit('load history');
     });
 
-    // Load message history
+    function refreshMessages() {
+      if (!isReady) return;
+      socket.emit('load history');
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) refreshMessages();
+    });
+
+    socket.on('connect', () => {
+      if (isReady) refreshMessages();
+    });
+
     socket.on('load messages', (msgs) => {
       if (!isReady) return;
       messagesContainer.innerHTML = '';
       msgs.forEach(msg => appendMessage(msg));
     });
 
-    // New message
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
-      notifyUser(msg.senderName, msg.text);
     });
 
     function appendMessage(msg) {
@@ -129,29 +108,19 @@
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Send message (and request notification permission if not already)
-    async function sendMessage() {
+    function sendMessage() {
       if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
-      // Request permission on first send (silent, no extra UI)
-      if (!notificationsEnabled && Notification.permission === 'default') {
-        await requestNotifPermission();
-      }
       socket.emit('chat message', { text });
       messageInput.value = '';
       messageInput.focus();
     }
 
-    // Auto-refresh when tab becomes visible
-    document.addEventListener('visibilitychange', () => {
-      pageVisible = !document.hidden;
-      if (pageVisible && isReady) socket.emit('load history');
-    });
-    socket.on('connect', () => { if (isReady) socket.emit('load history'); });
-
     sendBtn.onclick = sendMessage;
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
   </script>
 </body>
 </html>
