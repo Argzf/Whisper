@@ -11,12 +11,14 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(path.join(__dirname)));
 
-// Webhooks
+// Webhook for chat messages (required)
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 if (!WEBHOOK_URL) {
   console.error('❌ Missing DISCORD_WEBHOOK_URL in .env');
   process.exit(1);
 }
+
+// Webhook for join logs (optional)
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 
 // Persistent storage
@@ -32,25 +34,32 @@ function loadData() {
       const arr = JSON.parse(fs.readFileSync(TAKEN_NAMES_FILE, 'utf8'));
       takenNames = new Set(arr);
       console.log(`✅ Loaded ${takenNames.size} taken names`);
-    } else {
-      console.log('⚠️ takenNames.json not found, starting fresh');
     }
     if (fs.existsSync(USER_MAPPINGS_FILE)) {
       userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
       console.log(`✅ Loaded ${Object.keys(userMappings).length} user mappings`);
-    } else {
-      console.log('⚠️ userMappings.json not found, starting fresh');
     }
   } catch (e) { console.error('Failed to load data', e); }
 }
+
 function saveTakenNames() {
   fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2));
-  console.log(`💾 Saved ${takenNames.size} taken names`);
 }
+
 function saveUserMappings() {
   fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
-  console.log(`💾 Saved ${Object.keys(userMappings).length} user mappings`);
 }
+
+// Reload mapping from disk (used before each identify to avoid memory staleness)
+function reloadUserMappings() {
+  try {
+    if (fs.existsSync(USER_MAPPINGS_FILE)) {
+      userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
+      console.log(`🔄 Reloaded user mappings: ${Object.keys(userMappings).length} entries`);
+    }
+  } catch (e) { console.error('Reload failed', e); }
+}
+
 loadData();
 
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
@@ -138,6 +147,10 @@ io.on('connection', (socket) => {
 
   socket.on('identify', (storedUserId, callback) => {
     console.log(`🆔 Identify called with storedUserId: ${storedUserId}`);
+
+    // Reload mappings from disk to guarantee we have the latest data
+    reloadUserMappings();
+
     let userId = storedUserId;
     let name, avatar;
 
