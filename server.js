@@ -16,19 +16,29 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// File upload configuration
+// File upload configuration with random filenames
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
-// Serve uploaded files with aggressive caching (12 days)
+
+// Configure multer storage to generate a random name
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const randomName = crypto.randomUUID() + ext; // e.g., "550e8400-e29b-41d4-a716-446655440000.jpg"
+    cb(null, randomName);
+  }
+});
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB max
+});
+
 app.use('/uploads', express.static(uploadsDir, {
   maxAge: '12d',
   etag: true,
   lastModified: true
 }));
-const upload = multer({
-  dest: uploadsDir,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB max
-});
 
 // File upload endpoint
 app.post('/upload', upload.single('file'), (req, res) => {
@@ -54,7 +64,7 @@ if (!WEBHOOK_URL) {
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
 
-// Storage files
+// Storage files for taken names and user mappings
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 
