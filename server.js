@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const session = require('express-session');
+const setupAdmin = require('./admin');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,12 +15,12 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session for admin login (in‑memory)
+// Session (for admin)
 app.use(session({
   secret: crypto.randomUUID(),
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 30 * 60 * 1000 } // 30 minutes
+  cookie: { secure: false, maxAge: 30 * 60 * 1000 }
 }));
 
 // Webhooks
@@ -29,42 +30,27 @@ if (!WEBHOOK_URL) {
   process.exit(1);
 }
 const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
-const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'admin123'; // fallback
+const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'admin123';
 
 // Storage files
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
 const USER_MAPPINGS_FILE = path.join(__dirname, 'userMappings.json');
 
-if (!fs.existsSync(TAKEN_NAMES_FILE)) {
-  fs.writeFileSync(TAKEN_NAMES_FILE, '[]');
-  console.log('📄 Created takenNames.json');
-}
-if (!fs.existsSync(USER_MAPPINGS_FILE)) {
-  fs.writeFileSync(USER_MAPPINGS_FILE, '{}');
-  console.log('📄 Created userMappings.json');
-}
+if (!fs.existsSync(TAKEN_NAMES_FILE)) fs.writeFileSync(TAKEN_NAMES_FILE, '[]');
+if (!fs.existsSync(USER_MAPPINGS_FILE)) fs.writeFileSync(USER_MAPPINGS_FILE, '{}');
 
 let takenNames = new Set();
 let userMappings = {};
 
 function loadData() {
   try {
-    const takenRaw = fs.readFileSync(TAKEN_NAMES_FILE, 'utf8');
-    takenNames = new Set(JSON.parse(takenRaw));
-    const mappingRaw = fs.readFileSync(USER_MAPPINGS_FILE, 'utf8');
-    userMappings = JSON.parse(mappingRaw);
+    takenNames = new Set(JSON.parse(fs.readFileSync(TAKEN_NAMES_FILE, 'utf8')));
+    userMappings = JSON.parse(fs.readFileSync(USER_MAPPINGS_FILE, 'utf8'));
     console.log(`✅ Loaded ${takenNames.size} taken names, ${Object.keys(userMappings).length} user mappings`);
-  } catch (e) {
-    console.error('Failed to load data', e);
-  }
+  } catch (e) { console.error(e); }
 }
-function saveTakenNames() {
-  fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify(Array.from(takenNames), null, 2));
-}
-function saveUserMappings() {
-  fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2));
-}
-
+function saveTakenNames() { fs.writeFileSync(TAKEN_NAMES_FILE, JSON.stringify([...takenNames], null, 2)); }
+function saveUserMappings() { fs.writeFileSync(USER_MAPPINGS_FILE, JSON.stringify(userMappings, null, 2)); }
 loadData();
 
 const adjectives = ['Charming', 'Nagging', 'Shy', 'Scared', 'Celebrated', 'Cherished', 'Amazed', 'Foolish', 'Happy', 'Sleepy', 'Curious', 'Clever', 'Quiet', 'Bright', 'Witty', 'Calm', 'Bold', 'Swift', 'Drunk', 'High', 'Depressed'];
@@ -118,13 +104,10 @@ function generateUniqueName() {
 
 function getRandomAvatar() { return avatars[Math.floor(Math.random() * avatars.length)]; }
 
-// Helper to get real client IP (handles proxies)
 function getClientIP(socket) {
   const req = socket.request;
   const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
+  if (forwarded) return forwarded.split(',')[0].trim();
   return socket.handshake.address;
 }
 
@@ -166,184 +149,44 @@ async function sendJoinLog(name, avatar, userId, ip) {
 
 let messages = [];
 
-app.get('/debug/mappings', (req, res) => {
-  res.json(userMappings);
-});
+app.get('/debug/mappings', (req, res) => { res.json(userMappings); });
 
 io.on('connection', (socket) => {
   console.log('🔌 New connection');
-
   socket.on('identify', (storedUserId, callback) => {
     const clientIP = getClientIP(socket);
-    console.log(`🆔 Identify called with storedUserId = ${storedUserId} (IP: ${clientIP})`);
-
-    let userId = storedUserId;
-    let name, avatar;
-
+    let userId = storedUserId, name, avatar;
     if (storedUserId && userMappings[storedUserId]) {
       const identity = userMappings[storedUserId];
       name = identity.name;
       avatar = identity.avatar;
       userId = storedUserId;
-      console.log(`✅ Returning existing user: ${name} (${userId})`);
     } else {
       userId = crypto.randomUUID();
       name = generateUniqueName();
       avatar = getRandomAvatar();
       userMappings[userId] = { name, avatar };
       saveUserMappings();
-      console.log(`🆕 Created new user: ${name} (${userId})`);
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
     sendJoinLog(name, avatar, userId, clientIP);
   });
-
-  socket.on('load history', () => {
-    socket.emit('load messages', messages);
-  });
-
+  socket.on('load history', () => socket.emit('load messages', messages));
   socket.on('chat message', async ({ text }) => {
     if (!socket.userIdentity) return;
     const { name, avatar } = socket.userIdentity;
-    const msg = {
-      text,
-      timestamp: new Date().toISOString(),
-      senderName: name,
-      senderAvatar: avatar
-    };
+    const msg = { text, timestamp: new Date().toISOString(), senderName: name, senderAvatar: avatar };
     messages.push(msg);
     if (messages.length > 500) messages.shift();
     io.emit('chat message', msg);
     await sendToDiscord(name, avatar, text);
   });
-
-  socket.on('disconnect', () => {
-    console.log('🔌 Disconnected');
-  });
+  socket.on('disconnect', () => console.log('🔌 Disconnected'));
 });
 
-// ---------- ADMIN PANEL ----------
-function isAuthenticated(req) {
-  return req.session && req.session.authenticated === true;
-}
-
-app.get('/admin', (req, res) => {
-  if (isAuthenticated(req)) {
-    const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
-    const recentMessages = messages.slice(-50).reverse();
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Whisper – Admin</title>
-        <style>
-          body { font-family: system-ui; background: #0a0c10; color: #eee; margin: 0; padding: 2rem; }
-          h1, h2 { color: #818cf8; }
-          table { border-collapse: collapse; width: 100%; margin-top: 1rem; background: #1e1e2e; border-radius: 12px; overflow: hidden; }
-          th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #333; }
-          th { background: #2d3748; }
-          .message-bubble { background: #2d3748; padding: 0.5rem; border-radius: 12px; margin: 0.25rem 0; }
-          input, button { padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
-          input { background: #2d3748; color: white; width: 100%; }
-          button { background: #6366f1; color: white; cursor: pointer; }
-          button:hover { background: #818cf8; }
-          .container { max-width: 1200px; margin: 0 auto; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>🔐 Admin Dashboard</h1>
-          <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
-            <div style="flex: 2;">
-              <h2>📨 Recent Messages (last 50)</h2>
-              <div style="max-height: 400px; overflow-y: auto;">
-                ${recentMessages.map(m => `<div class="message-bubble"><strong>${escapeHtml(m.senderName)}</strong> (${new Date(m.timestamp).toLocaleString()}): ${escapeHtml(m.text)}</div>`).join('')}
-                ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : ''}
-              </div>
-            </div>
-            <div style="flex: 1;">
-              <h2>👥 Users (${userList.length})</h2>
-              <div style="max-height: 400px; overflow-y: auto;">
-                ${userList.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('')}
-              </div>
-            </div>
-          </div>
-          <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
-          <form action="/admin/broadcast" method="POST">
-            <input type="text" name="broadcastText" placeholder="System message to all users" required>
-            <button type="submit">Send Broadcast</button>
-          </form>
-          <div style="margin-top: 2rem;">
-            <a href="/admin/logout" style="color: #f87171;">Logout</a>
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
-  } else {
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Admin Login</title>
-        <style>
-          body { background: #0a0c10; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: system-ui; }
-          .card { background: #1e1e2e; padding: 2rem; border-radius: 1rem; width: 300px; }
-          input, button { width: 100%; padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
-          button { background: #6366f1; color: white; cursor: pointer; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Admin Passcode</h2>
-          <form action="/admin/login" method="POST">
-            <input type="password" name="passcode" placeholder="Enter passcode" autofocus>
-            <button type="submit">Login</button>
-          </form>
-        </div>
-      </body>
-      </html>
-    `);
-  }
-});
-
-app.post('/admin/login', (req, res) => {
-  const { passcode } = req.body;
-  if (passcode === ADMIN_PASSCODE) {
-    req.session.authenticated = true;
-    res.redirect('/admin');
-  } else {
-    res.send('<p style="color:red;">Wrong passcode. <a href="/admin">Try again</a></p>');
-  }
-});
-
-app.get('/admin/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/admin');
-});
-
-app.post('/admin/broadcast', (req, res) => {
-  if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
-  const broadcastText = req.body.broadcastText?.trim();
-  if (broadcastText) {
-    io.emit('system message', { text: `📢 ADMIN: ${broadcastText}` });
-    console.log(`📢 Admin broadcast: ${broadcastText}`);
-  }
-  res.redirect('/admin');
-});
-
-function escapeHtml(str) {
-  return str.replace(/[&<>]/g, (m) => {
-    if (m === '&') return '&amp;';
-    if (m === '<') return '&lt;';
-    if (m === '>') return '&gt;';
-    return m;
-  });
-}
+// Mount admin panel
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
