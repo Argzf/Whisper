@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>whisper · never‑repeated names</title>
+  <title>whisper · unique names</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
   <style>
@@ -37,7 +37,7 @@
     // Get stored user ID from localStorage (if any)
     let storedId = localStorage.getItem('whisperUserId');
 
-    // Identify with server – this gives us our permanent name+avatar (though we never show them on the page)
+    // Identify with server – this gives us our permanent name+avatar (never shown on page)
     socket.emit('identify', storedId, (data) => {
       console.log('Identity confirmed:', data.name);
       if (!storedId) {
