@@ -11,11 +11,15 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(path.join(__dirname)));
 
+// Webhook for chat messages (required)
 const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
 if (!WEBHOOK_URL) {
   console.error('❌ Missing DISCORD_WEBHOOK_URL in .env');
   process.exit(1);
 }
+
+// Webhook for join logs (optional – if missing, logging is skipped)
+const LOG_WEBHOOK_URL = process.env.WH_LOG_WEBHOOK_URL;
 
 // Persistent storage
 const TAKEN_NAMES_FILE = path.join(__dirname, 'takenNames.json');
@@ -78,6 +82,7 @@ function getRandomAvatar() {
   return avatars[Math.floor(Math.random() * avatars.length)];
 }
 
+// --- Send chat message to Discord (main webhook) ---
 async function sendToDiscord(name, avatar, text) {
   try {
     await fetch(WEBHOOK_URL, {
@@ -88,6 +93,38 @@ async function sendToDiscord(name, avatar, text) {
     console.log(`📨 Discord: ${name} said "${text}"`);
   } catch (err) {
     console.error('Discord webhook failed', err);
+  }
+}
+
+// --- Send join log to Discord (separate webhook, no cooldown) ---
+async function sendJoinLog(name, avatar, userId) {
+  if (!LOG_WEBHOOK_URL) {
+    console.log('No log webhook set – skipping join log');
+    return;
+  }
+
+  const embed = {
+    title: '🚪 User joined the chat',
+    color: 0x5865F2,
+    thumbnail: { url: avatar },
+    fields: [
+      { name: 'Username', value: name, inline: true },
+      { name: 'Avatar URL', value: `[link](${avatar})`, inline: true },
+      { name: 'User ID', value: `\`${userId}\``, inline: false }
+    ],
+    timestamp: new Date().toISOString(),
+    footer: { text: 'Whisper Room' }
+  };
+
+  try {
+    await fetch(LOG_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed] })
+    });
+    console.log(`📢 Join log sent to Discord for ${name}`);
+  } catch (err) {
+    console.error('Failed to send join log', err);
   }
 }
 
@@ -117,6 +154,9 @@ io.on('connection', (socket) => {
     }
     socket.userIdentity = { name, avatar, userId };
     callback({ userId, name, avatar });
+
+    // 🔔 Send join log (no cooldown, separate webhook)
+    sendJoinLog(name, avatar, userId);
   });
 
   socket.on('load history', () => {
@@ -126,7 +166,6 @@ io.on('connection', (socket) => {
   socket.on('chat message', async ({ text }) => {
     if (!socket.userIdentity) return;
     const { name, avatar } = socket.userIdentity;
-    // Create message object WITH sender info
     const msg = {
       text,
       timestamp: new Date().toISOString(),
