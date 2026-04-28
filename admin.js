@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
+function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames) {
   function escapeHtml(str) {
     return str.replace(/[&<>]/g, (m) => {
       if (m === '&') return '&amp;';
@@ -28,117 +28,35 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
           <title>Whisper – Admin</title>
           <link rel="icon" type="image/svg+xml" href="/admin-favicon.svg">
           <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-              background: #0a0c10;
-              color: #eee;
-              margin: 0;
-              padding: 1rem;
-            }
+            body { font-family: system-ui; background: #0a0c10; color: #eee; margin: 0; padding: 2rem; }
             h1, h2 { color: #818cf8; }
-            .container { max-width: 1400px; margin: 0 auto; }
-            .dashboard-grid {
-              display: flex;
-              gap: 1.5rem;
-              flex-wrap: wrap;
-            }
-            .messages-section {
-              flex: 2;
-              min-width: 0; /* avoid overflow */
-            }
-            .users-section {
-              flex: 1;
-              min-width: 200px;
-            }
-            .message-item {
-              background: #2d3748;
-              padding: 0.75rem;
-              border-radius: 12px;
-              margin: 0.5rem 0;
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-              gap: 1rem;
-              flex-wrap: wrap;
-            }
-            .message-content {
-              flex: 1;
-              word-break: break-word;
-            }
-            .file-preview {
-              margin: 0.5rem 0 0;
-              display: inline-block;
-              background: #1e293b;
-              border-radius: 8px;
-              padding: 0.25rem 0.5rem;
-              font-size: 0.85rem;
-            }
-            .file-preview img {
-              max-width: 60px;
-              max-height: 60px;
-              border-radius: 6px;
-              vertical-align: middle;
-              margin-right: 0.5rem;
-            }
-            .file-preview a {
-              color: #818cf8;
-              text-decoration: none;
-            }
+            .message-item { background: #2d3748; padding: 0.5rem; border-radius: 12px; margin: 0.25rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+            .message-content { flex: 1; }
+            .file-preview { margin: 0.25rem 0 0 0; display: inline-block; background: #1e293b; border-radius: 8px; padding: 0.25rem 0.5rem; }
+            .file-preview img { max-width: 60px; max-height: 60px; border-radius: 6px; vertical-align: middle; margin-right: 0.5rem; }
+            .file-preview a { color: #818cf8; text-decoration: none; }
             .file-preview a:hover { text-decoration: underline; }
-            .delete-btn {
-              background: #ef4444;
-              padding: 0.4rem 0.8rem;
-              border-radius: 8px;
-              border: none;
-              color: white;
-              cursor: pointer;
-              font-size: 0.85rem;
-              flex-shrink: 0;
-            }
-            .delete-btn:hover { background: #dc2626; }
-            input, button {
-              padding: 0.6rem;
-              margin: 0.5rem 0;
-              border-radius: 8px;
-              border: none;
-              font-size: 1rem;
-            }
-            input {
-              background: #2d3748;
-              color: white;
-              width: 100%;
-            }
-            button {
-              background: #6366f1;
-              color: white;
-              cursor: pointer;
-            }
+            input, select, button { padding: 0.5rem; margin: 0.5rem 0; border-radius: 8px; border: none; }
+            input, select { background: #2d3748; color: white; width: 100%; }
+            button { background: #6366f1; color: white; cursor: pointer; }
             button:hover { background: #818cf8; }
-            .danger-zone {
-              margin-top: 2rem;
-              border-top: 1px solid #334155;
-              padding-top: 1.5rem;
-            }
-            .purge-btn {
-              background: #dc2626;
-              padding: 0.6rem 1.2rem;
-            }
+            .delete-btn { background: #ef4444; padding: 0.25rem 0.75rem; }
+            .delete-btn:hover { background: #dc2626; }
+            .purge-btn { background: #dc2626; }
             .purge-btn:hover { background: #b91c1c; }
+            .container { max-width: 1200px; margin: 0 auto; }
             @media (max-width: 768px) {
-              body { padding: 0.75rem; }
-              .dashboard-grid { flex-direction: column; }
-              .messages-section, .users-section { width: 100%; }
+              body { padding: 1rem; }
               .message-item { flex-direction: column; align-items: stretch; }
-              .delete-btn { align-self: flex-end; margin-top: 0.5rem; }
+              .delete-btn { align-self: flex-end; }
             }
           </style>
         </head>
         <body>
           <div class="container">
             <h1>🔐 Admin Dashboard</h1>
-            <div class="dashboard-grid">
-              <div class="messages-section">
+            <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+              <div style="flex: 2;">
                 <h2>📨 Recent Messages (last 50)</h2>
                 <div id="messageList">
                   ${recentMessages.map(m => {
@@ -163,28 +81,41 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                   ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : ''}
                 </div>
               </div>
-              <div class="users-section">
+              <div style="flex: 1;">
                 <h2>👥 Users (${userList.length})</h2>
                 <div id="userList">
                   ${userList.map(u => `<div><img src="${u.avatar}" width="24" style="border-radius: 50%; vertical-align: middle;"> <strong>${escapeHtml(u.name)}</strong><br><small>${u.id}</small></div><hr>`).join('')}
                 </div>
               </div>
             </div>
-            <div style="margin-top: 1.5rem;">
-              <h2>📢 Broadcast Message</h2>
-              <form id="broadcastForm">
-                <input type="text" id="broadcastText" placeholder="System message to all users" required>
-                <button type="submit">Send Broadcast</button>
-              </form>
-            </div>
-            <div class="danger-zone">
+
+            <h2 style="margin-top: 2rem;">📢 Broadcast Message</h2>
+            <form id="broadcastForm">
+              <input type="text" id="broadcastText" placeholder="System message to all users" required>
+              <button type="submit">Send Broadcast</button>
+            </form>
+
+            <h2 style="margin-top: 2rem;">🔄 Change Your Identity</h2>
+            <form id="changeIdentityForm">
+              <select id="presetSelect" style="background: #2d3748; color: white;">
+                <option value="admin_whisper">Whisper Guardian (Admin)</option>
+                <option value="admin_echo">Echo Seeker</option>
+                <option value="admin_serene">Serene Keeper</option>
+              </select>
+              <button type="submit">Change</button>
+            </form>
+            <div id="identityStatus" style="margin-top: 0.5rem; font-size: 0.8rem;"></div>
+
+            <div class="danger-zone" style="margin-top: 2rem; border-top: 1px solid #334155; padding-top: 1.5rem;">
               <h2>⚠️ Danger Zone</h2>
               <button id="purgeBtn" class="purge-btn">Purge All Messages (cannot be undone)</button>
             </div>
-            <div style="margin-top: 1.5rem;">
+
+            <div style="margin-top: 2rem;">
               <a href="/admin/logout" style="color: #f87171;">Logout</a>
             </div>
           </div>
+
           <script>
             // Delete single message
             document.querySelectorAll('.delete-btn').forEach(btn => {
@@ -233,6 +164,31 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
                 }
               }
             });
+
+            // Change identity
+            document.getElementById('changeIdentityForm').addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const preset = document.getElementById('presetSelect').value;
+              const userId = localStorage.getItem('whisper_user_id');
+              if (!userId) {
+                document.getElementById('identityStatus').innerHTML = '<span style="color: #f87171;">✗ You are not logged into the chat? Please open the chat first.</span>';
+                return;
+              }
+              const res = await fetch('/admin/change-identity', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preset, userId })
+              });
+              const data = await res.json();
+              if (res.ok) {
+                document.getElementById('identityStatus').innerHTML = '<span style="color: #4ade80;">✓ Identity changed! The chat page will reload.</span>';
+                setTimeout(() => {
+                  window.location.href = '/chat';
+                }, 1500);
+              } else {
+                document.getElementById('identityStatus').innerHTML = `<span style="color: #f87171;">✗ ${data.error || 'Failed'}</span>`;
+              }
+            });
           </script>
         </body>
         </html>
@@ -269,7 +225,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
-  // ---- existing routes (login, logout, broadcast, delete-message) ----
   app.post('/admin/login', (req, res) => {
     const { passcode } = req.body;
     if (passcode === ADMIN_PASSCODE) {
@@ -318,10 +273,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
     }
   });
 
-  // Purge all messages and files
   app.post('/admin/purge-messages', (req, res) => {
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
-    // Delete all files associated with messages
+    // Delete all files
     for (const msg of messages) {
       if (msg.file && msg.file.url) {
         const filePath = path.join(__dirname, msg.file.url);
@@ -330,11 +284,43 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE) {
         });
       }
     }
-    // Clear messages array
     messages.length = 0;
     io.emit('system message', { text: '📢 All messages have been purged by an admin.' });
     console.log('🗑️ Admin purged all messages');
     res.status(200).send('OK');
+  });
+
+  // Change identity endpoint
+  app.post('/admin/change-identity', (req, res) => {
+    if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+    const { preset, userId } = req.body;
+    if (!preset || !userId) return res.status(400).json({ error: 'Missing preset or user ID' });
+    if (!userMappings[userId]) return res.status(400).json({ error: 'User not found' });
+
+    const presets = {
+      Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
+      ArGzf: { name: 'Argzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' }
+    };
+    const newIdentity = presets[preset];
+    if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
+
+    // Check if name is already taken by another user
+    const existing = Object.entries(userMappings).find(([id, data]) => data.name === newIdentity.name && id !== userId);
+    if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
+
+    // Update mapping
+    userMappings[userId] = { name: newIdentity.name, avatar: newIdentity.avatar };
+    saveUserMappings();
+
+    // Add new name to takenNames set to prevent reuse
+    if (!takenNames.has(newIdentity.name)) {
+      takenNames.add(newIdentity.name);
+      saveTakenNames();
+    }
+
+    // Broadcast to all sockets of this user to reload identity
+    io.emit('force-reload-identity', { userId });
+    res.json({ success: true });
   });
 }
 
