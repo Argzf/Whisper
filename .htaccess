@@ -1,8 +1,21 @@
 RewriteEngine On
 
-# Force HTTPS (no www)
+# Force HTTPS (remove www)
 RewriteCond %{HTTPS} off
 RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [L,R=301]
+
+# Redirect old .html pages to their new clean URL equivalents (301 redirect)
+RewriteCond %{THE_REQUEST} \ /+([^.]+)\.html(\?[^\ ]*)?\ HTTP
+RewriteRule ^(.+)\.html$ /$1 [L,R=301]
+
+# Serve faq.html when /faq is requested (internal rewrite)
+RewriteRule ^faq$ /faq.html [L]
+
+# Serve pp.html when /privacy-policy is requested (internal rewrite)
+RewriteRule ^privacy-policy$ /pp.html [L]
+
+# Serve tos.html when /tos is requested (internal rewrite)
+RewriteRule ^tos$ /tos.html [L]
 
 # Custom error pages
 ErrorDocument 404 /404.html
@@ -12,6 +25,4 @@ ErrorDocument 403 /403.html
 Options -Indexes
 
 # Enable GZIP compression for text files
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
-</IfModule>
+AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
