@@ -1,7 +1,7 @@
 PROPRIETARY SOURCE-VISIBLE LICENSE (PSVL)
 Version 1.0, June 2026
 
-Copyright (c) 2026 Arsan (Argzf)
+Copyright (c) 2026 Arsan Gzf (Argzf)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to view, study, and create non‑commercial forks of the Software for personal or educational use only.
 
