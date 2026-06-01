@@ -231,6 +231,39 @@ io.on('connection', (socket) => {
   });
 });
 
+// ========== CUSTOM ERROR PAGES ==========
+// 403 Forbidden (for routes that are explicitly forbidden, e.g., missing admin access)
+app.use('/admin/*', (req, res, next) => {
+  // This is a generic catch for any non-API admin routes
+  // You can customize if needed, but our API endpoints already handle 403 with JSON.
+  // For HTML requests, we serve 403.html
+  if (req.accepts('html')) {
+    res.status(403).sendFile(path.join(__dirname, '403.html'));
+  } else {
+    res.status(403).json({ error: 'Forbidden' });
+  }
+});
+
+// 404 handler – catch all remaining routes that weren't matched
+app.use((req, res, next) => {
+  // Check if the request expects HTML (browser)
+  if (req.accepts('html')) {
+    res.status(404).sendFile(path.join(__dirname, '404.html'));
+  } else {
+    res.status(404).json({ error: 'Not Found' });
+  }
+});
+
+// Optional: 500 internal server error handler (for unexpected errors)
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  if (req.accepts('html')) {
+    res.status(500).sendFile(path.join(__dirname, '500.html'));
+  } else {
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ========== START SERVER ==========
 server.listen(PORT, () => {
   console.log(`Whisper server running on http://localhost:${PORT}`);
