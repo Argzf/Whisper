@@ -31,7 +31,7 @@ if (!ADMIN_PASSCODE) {
   console.error('❌ Missing ADMIN_PASSCODE in .env');
   process.exit(1);
 }
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;   // ✅ declared once
 
 // Helper to build absolute URL from request
 function getAbsoluteUrl(req, relativePath) {
@@ -281,7 +281,6 @@ app.get('/faq', (req, res) => res.sendFile(path.join(__dirname, 'faq.html')));
 app.get('/privacy-policy', (req, res) => res.sendFile(path.join(__dirname, 'pp.html')));
 app.get('/tos', (req, res) => res.sendFile(path.join(__dirname, 'tos.html')));
 
-// Redirect old .html to clean URLs (301 permanent)
 app.get('/faq.html', (req, res) => res.redirect(301, '/faq'));
 app.get('/pp.html', (req, res) => res.redirect(301, '/privacy-policy'));
 app.get('/tos.html', (req, res) => res.redirect(301, '/tos'));
@@ -322,7 +321,7 @@ app.use((err, req, res, next) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+// ========== START SERVER ==========
 server.listen(PORT, () => {
   console.log(`🔥 Chat + Admin running on http://localhost:${PORT}`);
   if (!ROOMS_ENABLED) console.log('⚠️ Rooms feature is currently DISABLED');
