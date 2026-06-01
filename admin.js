@@ -15,230 +15,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         return req.session && req.session.authenticated === true;
     }
 
-    // Helper to truncate long strings
-    function truncate(str, len = 50) {
-        if (!str) return '';
-        return str.length > len ? str.substring(0, len) + '…' : str;
-    }
-
     // Admin dashboard (authenticated)
     app.get('/admin', (req, res) => {
         if (isAuthenticated(req)) {
             const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
             const recentMessages = messages.slice(-50).reverse();
-
-            // Modern, responsive CSS
-            const css = `
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-
-                body {
-                    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-                    background: #f1f5f9;
-                    color: #1e293b;
-                    padding: 2rem;
-                    line-height: 1.5;
-                }
-
-                /* Dashboard container */
-                .dashboard {
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    display: grid;
-                    gap: 2rem;
-                }
-
-                /* Header */
-                .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    flex-wrap: wrap;
-                    gap: 1rem;
-                    padding-bottom: 1rem;
-                    border-bottom: 2px solid #cbd5e1;
-                }
-                .header h1 {
-                    font-size: 1.8rem;
-                    font-weight: 600;
-                    background: linear-gradient(135deg, #1e293b, #3b82f6);
-                    background-clip: text;
-                    -webkit-background-clip: text;
-                    color: transparent;
-                }
-                .logout-btn {
-                    background: #ef4444;
-                    color: white;
-                    padding: 0.5rem 1rem;
-                    border-radius: 0.5rem;
-                    text-decoration: none;
-                    font-weight: 500;
-                    transition: 0.2s;
-                }
-                .logout-btn:hover {
-                    background: #dc2626;
-                }
-
-                /* Cards */
-                .card {
-                    background: white;
-                    border-radius: 1rem;
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-                    overflow: hidden;
-                    border: 1px solid #e2e8f0;
-                }
-                .card-header {
-                    background: #f8fafc;
-                    padding: 1rem 1.5rem;
-                    border-bottom: 1px solid #e2e8f0;
-                }
-                .card-header h2 {
-                    font-size: 1.25rem;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                }
-                .card-body {
-                    padding: 1.5rem;
-                }
-
-                /* Message list */
-                .message-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                }
-                .message-item {
-                    background: #f8fafc;
-                    border-radius: 0.75rem;
-                    padding: 1rem;
-                    border: 1px solid #e2e8f0;
-                    transition: 0.1s;
-                }
-                .message-meta {
-                    font-size: 0.8rem;
-                    color: #475569;
-                    margin-bottom: 0.5rem;
-                    display: flex;
-                    justify-content: space-between;
-                    flex-wrap: wrap;
-                    gap: 0.5rem;
-                }
-                .message-text {
-                    margin: 0.5rem 0;
-                    word-break: break-word;
-                }
-                .file-link {
-                    display: inline-block;
-                    margin-top: 0.5rem;
-                    background: #e2e8f0;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 0.5rem;
-                    font-size: 0.8rem;
-                }
-                .delete-btn {
-                    background: #ef4444;
-                    color: white;
-                    border: none;
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 0.5rem;
-                    cursor: pointer;
-                    font-size: 0.8rem;
-                    margin-top: 0.5rem;
-                }
-                .delete-btn:hover {
-                    background: #dc2626;
-                }
-
-                /* User grid */
-                .user-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-                    gap: 0.75rem;
-                }
-                .user-card {
-                    background: #f8fafc;
-                    border-radius: 0.75rem;
-                    padding: 0.75rem;
-                    border: 1px solid #e2e8f0;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                }
-                .user-avatar {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    object-fit: cover;
-                    flex-shrink: 0;
-                }
-                .user-info {
-                    flex: 1;
-                    min-width: 0;
-                }
-                .user-name {
-                    font-weight: 600;
-                    word-break: break-word;
-                }
-                .user-id {
-                    font-size: 0.7rem;
-                    color: #64748b;
-                    word-break: break-all;
-                }
-
-                /* Forms */
-                .form-group {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 0.5rem;
-                    margin-top: 0.5rem;
-                }
-                input, select {
-                    padding: 0.5rem 0.75rem;
-                    border-radius: 0.5rem;
-                    border: 1px solid #cbd5e1;
-                    background: white;
-                    font-size: 0.9rem;
-                    flex: 1;
-                    min-width: 150px;
-                }
-                button {
-                    background: #3b82f6;
-                    color: white;
-                    border: none;
-                    padding: 0.5rem 1rem;
-                    border-radius: 0.5rem;
-                    cursor: pointer;
-                    font-weight: 500;
-                    transition: 0.2s;
-                }
-                button:hover {
-                    background: #2563eb;
-                }
-                .danger-btn {
-                    background: #ef4444;
-                }
-                .danger-btn:hover {
-                    background: #dc2626;
-                }
-
-                /* Responsive */
-                @media (max-width: 768px) {
-                    body {
-                        padding: 1rem;
-                    }
-                    .card-body {
-                        padding: 1rem;
-                    }
-                    .user-grid {
-                        grid-template-columns: 1fr;
-                    }
-                }
-            `;
 
             let html = `<!DOCTYPE html>
             <html lang="en">
@@ -246,161 +27,257 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Whisper – Admin</title>
-                <style>${css}</style>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>
+                    body {
+                        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                    }
+                    ::-webkit-scrollbar {
+                        width: 8px;
+                        height: 8px;
+                    }
+                    ::-webkit-scrollbar-track {
+                        background: rgba(255, 255, 255, 0.1);
+                        border-radius: 10px;
+                    }
+                    ::-webkit-scrollbar-thumb {
+                        background: #6366f1;
+                        border-radius: 10px;
+                    }
+                    ::-webkit-scrollbar-thumb:hover {
+                        background: #818cf8;
+                    }
+                    .card {
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    }
+                    .card:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+                    }
+                    .message-card {
+                        transition: all 0.2s ease;
+                    }
+                    .message-card:hover {
+                        background: rgba(51, 65, 85, 0.8);
+                        transform: translateX(2px);
+                    }
+                    .avatar-img {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        object-fit: cover;
+                    }
+                </style>
             </head>
-            <body>
-                <div class="dashboard">
-                    <div class="header">
-                        <h1>🛡️ Admin Dashboard</h1>
-                        <a href="/admin/logout" class="logout-btn">🔓 Logout</a>
+            <body class="min-h-screen">
+                <div class="container mx-auto px-4 py-6 max-w-7xl">
+                    <!-- Header -->
+                    <div class="flex justify-between items-center mb-8">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-5 h-5 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                            </div>
+                            <h1 class="text-2xl font-bold bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">Admin Dashboard</h1>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm text-gray-400">Welcome, Admin</span>
+                            <a href="/admin/logout" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors shadow-md">Logout</a>
+                        </div>
                     </div>
 
-                    <!-- Recent Messages -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>📩 Recent Messages (last 50)</h2>
+                    <!-- Stats Overview (optional, can be removed if not needed) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50 card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-gray-400 text-sm">Total Messages</p>
+                                    <p class="text-2xl font-bold text-white">${messages.length}</p>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-indigo-900/50 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-6 h-6 text-indigo-400">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">`;
+                        <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50 card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-gray-400 text-sm">Total Users</p>
+                                    <p class="text-2xl font-bold text-white">${userList.length}</p>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-purple-900/50 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-6 h-6 text-purple-400">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50 card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-gray-400 text-sm">Recent Activity</p>
+                                    <p class="text-2xl font-bold text-white">${recentMessages.length}</p>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-green-900/50 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-6 h-6 text-green-400">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- Two Column Layout -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <!-- Recent Messages -->
+                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
+                            <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
+                                <h2 class="text-lg font-semibold text-white">📩 Recent Messages</h2>
+                            </div>
+                            <div class="p-4 max-h-[400px] overflow-y-auto">`;
             if (recentMessages.length === 0) {
-                html += '<p>No messages yet.</p>';
+                html += `<div class="text-center py-8 text-gray-400">No messages yet.</div>`;
             } else {
-                html += '<div class="message-list">';
                 for (const m of recentMessages) {
                     let fileHtml = '';
                     if (m.file) {
                         if (m.file.type && m.file.type.startsWith('image/')) {
-                            fileHtml = `<div class="file-link"><img src="${escapeHtml(m.file.url)}" style="max-width: 100px; border-radius: 8px;" /></div>`;
+                            fileHtml = `<div class="mt-2"><img src="${escapeHtml(m.file.url)}" class="max-w-[150px] rounded-lg border border-gray-600" /></div>`;
                         } else {
-                            fileHtml = `<div class="file-link"><a href="${escapeHtml(m.file.url)}" target="_blank">📎 ${escapeHtml(m.file.name)}</a></div>`;
+                            fileHtml = `<div class="mt-2"><a href="${escapeHtml(m.file.url)}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-sm">📎 ${escapeHtml(m.file.name)}</a></div>`;
                         }
                     }
-                    html += `<div class="message-item">
-                        <div class="message-meta">
-                            <span><strong>${escapeHtml(m.senderName)}</strong></span>
-                            <span>${new Date(m.timestamp).toLocaleString()}</span>
-                        </div>
-                        <div class="message-text">${escapeHtml(m.text || '')}</div>
-                        ${fileHtml}
-                        <form action="/admin/delete-message/${m.id}" method="POST" style="margin-top: 0.5rem;">
-                            <button type="submit" class="delete-btn">🗑️ Delete</button>
-                        </form>
-                    </div>`;
+                    html += `
+                                <div class="message-card bg-gray-800/60 rounded-lg p-3 mb-3 border border-gray-700/30">
+                                    <div class="flex justify-between items-start mb-1">
+                                        <span class="font-medium text-indigo-300 text-sm">${escapeHtml(m.senderName)}</span>
+                                        <span class="text-xs text-gray-500">${new Date(m.timestamp).toLocaleString()}</span>
+                                    </div>
+                                    <div class="text-gray-300 text-sm mb-2">${escapeHtml(m.text || '')}</div>
+                                    ${fileHtml}
+                                    <form action="/admin/delete-message/${m.id}" method="POST" class="mt-2">
+                                        <button type="submit" class="text-red-400 hover:text-red-300 text-xs transition-colors">🗑️ Delete</button>
+                                    </form>
+                                </div>`;
                 }
-                html += '</div>';
             }
-
-            html += `</div></div>
-
-                    <!-- Users -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>👥 Users (${userList.length})</h2>
+            html += `</div>
                         </div>
-                        <div class="card-body">
-                            <div class="user-grid">`;
 
-            for (const u of userList) {
-                html += `<div class="user-card">
-                            <img src="${escapeHtml(u.avatar)}" class="user-avatar" alt="avatar">
-                            <div class="user-info">
-                                <div class="user-name">${escapeHtml(u.name)}</div>
-                                <div class="user-id" title="${escapeHtml(u.id)}">${truncate(u.id, 30)}</div>
+                        <!-- Users List -->
+                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
+                            <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
+                                <h2 class="text-lg font-semibold text-white">👥 Active Users (${userList.length})</h2>
                             </div>
-                        </div>`;
+                            <div class="p-4 max-h-[400px] overflow-y-auto">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
+            for (const u of userList) {
+                html += `
+                                    <div class="bg-gray-800/60 rounded-lg p-3 flex items-center gap-3 border border-gray-700/30">
+                                        <img src="${escapeHtml(u.avatar)}" class="avatar-img w-10 h-10 rounded-full border border-gray-600" alt="avatar">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="font-medium text-gray-200 truncate">${escapeHtml(u.name)}</p>
+                                            <p class="text-xs text-gray-500 truncate">${u.id}</p>
+                                        </div>
+                                    </div>`;
             }
-
-            html += `</div></div></div>
-
-                    <!-- Broadcast Message -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>📢 Broadcast Message</h2>
-                        </div>
-                        <div class="card-body">
-                            <form action="/admin/broadcast" method="POST">
-                                <div class="form-group">
-                                    <input type="text" name="broadcastText" placeholder="Broadcast message..." required>
-                                    <button type="submit">Send Broadcast</button>
-                                </div>
-                            </form>
+            html += `</div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Change Identity (Presets) -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>🔄 Change Identity (Presets)</h2>
-                        </div>
-                        <div class="card-body">
-                            <form action="/admin/change-identity" method="POST">
-                                <div class="form-group">
-                                    <input type="text" name="userId" placeholder="User ID" required>
-                                    <select name="preset">
-                                        <option value="Arsan">Arsan</option>
-                                        <option value="ArGzf">ArGzf</option>
-                                        <option value="Admin">Admin</option>
-                                    </select>
-                                    <button type="submit">Change</button>
-                                </div>
+                    <!-- Action Cards Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Broadcast Message -->
+                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
+                            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                <span>📢</span> Broadcast Message
+                            </h2>
+                            <form action="/admin/broadcast" method="POST" class="space-y-3">
+                                <input type="text" name="broadcastText" placeholder="Enter your announcement..." class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Send Broadcast</button>
                             </form>
                         </div>
-                    </div>
 
-                    <!-- Change Identity (Custom) -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h2>✏️ Change Identity (Custom)</h2>
-                        </div>
-                        <div class="card-body">
-                            <form action="/admin/change-custom-identity" method="POST">
-                                <div class="form-group">
-                                    <input type="text" name="userId" placeholder="User ID" required>
-                                    <input type="text" name="customName" placeholder="New custom name" required>
-                                    <button type="submit">Apply Custom Name</button>
-                                </div>
+                        <!-- Change Identity (Presets) -->
+                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
+                            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                <span>🔄</span> Preset Identity
+                            </h2>
+                            <form action="/admin/change-identity" method="POST" class="space-y-3">
+                                <input type="text" name="userId" placeholder="User ID" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <select name="preset" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="Arsan">Arsan</option>
+                                    <option value="ArGzf">ArGzf</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Preset</button>
                             </form>
                         </div>
-                    </div>
 
-                    <!-- Danger Zone -->
-                    <div class="card" style="border-color: #fecaca;">
-                        <div class="card-header" style="background: #fef2f2;">
-                            <h2>⚠️ Danger Zone</h2>
+                        <!-- Custom Identity -->
+                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
+                            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                <span>✏️</span> Custom Identity
+                            </h2>
+                            <form action="/admin/change-custom-identity" method="POST" class="space-y-3">
+                                <input type="text" name="userId" placeholder="User ID" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <input type="text" name="customName" placeholder="New Custom Name" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Custom Name</button>
+                            </form>
                         </div>
-                        <div class="card-body">
-                            <form action="/admin/purge-messages" method="POST" onsubmit="return confirm('⚠️ Are you sure you want to purge ALL messages? This cannot be undone!');">
-                                <button type="submit" class="danger-btn">🧹 Purge All Messages</button>
+
+                        <!-- Danger Zone -->
+                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
+                            <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">
+                                <span>⚠️</span> Danger Zone
+                            </h2>
+                            <form action="/admin/purge-messages" method="POST" onsubmit="return confirm('⚠️ Are you sure you want to purge ALL messages? This action cannot be undone!');">
+                                <button type="submit" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
                             </form>
                         </div>
                     </div>
                 </div>
             </body>
             </html>`;
-
             res.send(html);
         } else {
-            // Original login page preserved exactly as you had it
+            // Login page – fully centered with consistent styling
             res.send(`
                 <!DOCTYPE html>
                 <html lang="en">
                 <head>
                     <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>Admin Login</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <script src="https://cdn.tailwindcss.com"></script>
                     <style>
-                        body{background:#0f172a;color:#e2e8f0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui,sans-serif;}
-                        .login-box{background:#1e293b;padding:2rem;border-radius:1rem;text-align:center;border:1px solid #334155;}
-                        input{background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:0.5rem;border-radius:0.5rem;margin:0.5rem 0;width:100%;}
-                        button{background:#3b82f6;border:none;padding:0.5rem 1rem;border-radius:0.5rem;color:white;cursor:pointer;width:100%;}
-                        button:hover{background:#2563eb;}
+                        body {
+                            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                        }
                     </style>
                 </head>
-                <body>
-                    <div class="login-box">
-                        <h2>🔐 Admin Passcode</h2>
-                        <form action="/admin/login" method="POST">
-                            <input type="password" name="passcode" placeholder="Enter passcode" autofocus>
-                            <button type="submit">Login</button>
+                <body class="min-h-screen flex items-center justify-center px-4">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50">
+                        <div class="flex justify-center mb-6">
+                            <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-8 h-8 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h2 class="text-2xl font-bold text-center text-white mb-2">Admin Access</h2>
+                        <p class="text-center text-gray-400 mb-6">Please enter the passcode to continue</p>
+                        <form action="/admin/login" method="POST" class="space-y-4">
+                            <input type="password" name="passcode" placeholder="Enter passcode" autofocus class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Login</button>
                         </form>
                     </div>
                 </body>
@@ -409,7 +286,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
     });
 
-    // Admin login handler (unchanged)
+    // Admin login handler (unchanged logic, only UI restored)
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
@@ -419,12 +296,28 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             res.send(`
                 <!DOCTYPE html>
                 <html lang="en">
-                <head><meta charset="UTF-8"><title>Admin Login</title>
-                <style>body{background:#0f172a;color:#e2e8f0;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;}</style>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Admin Login</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        body {
+                            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                        }
+                    </style>
                 </head>
-                <body>
-                    <div style="background:#1e293b;padding:2rem;border-radius:1rem;text-align:center;">
-                        <p>Wrong passcode. <a href="/admin" style="color:#60a5fa;">Try again</a></p>
+                <body class="min-h-screen flex items-center justify-center px-4">
+                    <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50 text-center">
+                        <div class="text-red-400 mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <p class="text-gray-300 mb-4">Wrong passcode. Please try again.</p>
+                        <a href="/admin" class="text-indigo-400 hover:text-indigo-300 transition-colors">← Back to login</a>
                     </div>
                 </body>
                 </html>
@@ -432,11 +325,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
     });
 
+    // Admin logout
     app.get('/admin/logout', (req, res) => {
         req.session.destroy();
         res.redirect('/admin');
     });
 
+    // Broadcast message
     app.post('/admin/broadcast', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
         const broadcastText = req.body.broadcastText?.trim();
@@ -449,6 +344,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
     });
 
+    // Delete single message
     app.post('/admin/delete-message/:id', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
         const messageId = req.params.id;
@@ -470,6 +366,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
     });
 
+    // Purge all messages
     app.post('/admin/purge-messages', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
         for (const msg of messages) {
@@ -516,7 +413,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ success: true });
     });
 
-    // Custom identity change (unchanged logic)
+    // Custom identity change (admin can set any name)
     app.post('/admin/change-custom-identity', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const { userId, customName } = req.body;
@@ -543,7 +440,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
 
         io.emit('force-reload-identity', { userId });
-        console.log(`✏️ Admin changed user ${userId} name from "${oldName}" to "${newName}"`);
+        console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"`);
         res.json({ success: true });
     });
 }
