@@ -254,7 +254,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
     const broadcastText = req.body.broadcastText?.trim();
     if (broadcastText) {
-      io.emit('system message', { text: `📢 ADMIN: ${broadcastText}` });
+      io.emit('system message', { text: `📢 Admin: ${broadcastText}` });
       console.log(`📢 Admin broadcast: ${broadcastText}`);
       res.status(200).send('OK');
     } else {
