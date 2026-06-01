@@ -373,6 +373,13 @@
       if (msgDiv) msgDiv.remove();
     });
 
+    // 🔥 NEW: Handle full message purge (admin cleared all messages)
+    socket.on('messages purged', () => {
+      messagesContainer.innerHTML = '';
+      // Optional: reload history to stay fully synced with server
+      if (isReady) socket.emit('load history');
+    });
+
     // Identity change listener
     socket.on('force-reload-identity', (data) => {
       if (data.userId === localStorage.getItem('whisper_user_id')) {
@@ -495,8 +502,7 @@
       pageVisible = !document.hidden;
     });
 
-    // ==================== FIX: Request notification permission on load ====================
-    // This ensures system messages can notify even if user never sends a message.
+    // ==================== Request permissions on load ====================
     requestNotificationPermissionSafe();
 
   </script>
