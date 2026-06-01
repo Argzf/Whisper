@@ -149,41 +149,42 @@ function getClientIP(socket) {
     return socket.handshake.address;
 }
 
-// ==================== DISCORD WEBHOOKS ====================
+// Helper to build room link from socket request
+function getRoomLink(socket, roomName) {
+    const req = socket.request;
+    const protocol = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    return `${protocol}://${host}/room/${roomName}`;
+}
 
+// Discord webhook functions
 async function sendToDiscord(name, avatar, text, ip, file = null, roomName = null, roomLink = null) {
     if (!WEBHOOK_URL) return;
     const embed = {
         author: { name: name, icon_url: avatar },
         timestamp: new Date().toISOString(),
-        color: 0x5865F2, // Discord blurple
-        description: '',
+        color: 0x5865F2,
+        description: text || '*sent a file*',
         footer: { text: `IP: ${ip}` }
     };
-    let description = text || '';
     if (file) {
         if (file.type && file.type.startsWith('image/')) {
             embed.image = { url: file.url };
-            description += description ? `\n\n[🖼️ View full size](${file.url})` : `[🖼️ View full size](${file.url})`;
+            embed.description += `\n[🖼️ View full size](${file.url})`;
         } else {
-            description += description ? `\n\n📎 [${file.name}](${file.url})` : `📎 [${file.name}](${file.url})`;
+            embed.description += `\n📎 [${file.name}](${file.url})`;
         }
     }
-    if (!description.trim()) description = '*sent a file*';
-    embed.description = description;
-    
     if (roomName && roomLink) {
         embed.fields = [{ name: '📍 Room', value: `[${roomName}](${roomLink})`, inline: true }];
     }
-    
     try {
-        const response = await fetch(WEBHOOK_URL, {
+        await fetch(WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ embeds: [embed] })
         });
-        if (!response.ok) console.error(`Discord webhook returned ${response.status}`);
-        else console.log(`📨 Discord embed sent for ${name}${roomName ? ` in ${roomName}` : ''}`);
+        console.log(`📨 Discord embed sent for ${name}${roomName ? ` in ${roomName}` : ''}`);
     } catch (err) { console.error('Discord webhook failed:', err.message); }
 }
 
@@ -238,8 +239,6 @@ async function sendJoinLog(name, avatar, userId, ip, roomName = null, roomLink =
     } catch (err) { console.error('Join log failed', err); }
 }
 
-// ==================== SOCKET.IO ====================
-
 let messages = []; // main chat
 let userSocketMap = new Map();
 
@@ -263,7 +262,7 @@ io.on('connection', (socket) => {
         socket.userIdentity = { name, avatar, userId };
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
-        // No join log here – will be sent when user joins main chat or a room
+        // No join log here – main chat join can be added separately if needed
     });
 
     // Main chat (original)
@@ -318,7 +317,7 @@ io.on('connection', (socket) => {
         const avatar = socket.userIdentity.avatar;
         const userId = socket.userIdentity.userId;
         const ip = getClientIP(socket);
-        const roomLink = `${req.protocol}://${req.get('host')}/room/${roomName}`;
+        const roomLink = getRoomLink(socket, roomName);
         await sendJoinLog(name, avatar, userId, ip, roomName, roomLink);
     });
 
@@ -336,7 +335,7 @@ io.on('connection', (socket) => {
         };
         roomsModule.addRoomMessage(socket.currentRoom, msg);
         io.to(socket.currentRoom).emit('room chat message', msg);
-        const roomLink = `${req.protocol}://${req.get('host')}/room/${socket.currentRoom}`;
+        const roomLink = getRoomLink(socket, socket.currentRoom);
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file, socket.currentRoom, roomLink);
     });
 
@@ -361,8 +360,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// ==================== HTTP ROUTES ====================
-
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/chat', (req, res) => { res.sendFile(path.join(__dirname, 'chat.html')); });
 
@@ -381,7 +378,7 @@ app.get('/room/:roomName', (req, res) => {
     const roomIndicator = `<div class="tagline ml-2" style="background:rgba(99,102,241,0.2);">${room.hasPassword ? '🔒 Private' : '🔓 Public'}</div>`;
     chatHtml = chatHtml.replace('<div class="tagline">Anonymous · Instant</div>', `<div class="tagline">Anonymous · Instant</div>${roomIndicator}`);
 
-    // Inject room initialization script (with fixed modal)
+    // Inject room initialization script – ensures password is sent
     const roomScript = `
     <script>
         (function() {
@@ -422,7 +419,6 @@ app.get('/room/:roomName', (req, res) => {
                 });
                 
                 // Override send functions
-                const originalSend = window.sendMessage;
                 window.sendMessage = function() {
                     const text = document.getElementById('messageInput').value.trim();
                     if (!text) return;
