@@ -2,150 +2,264 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>Whisper – Terms of Service</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+  <meta name="theme-color" content="#1e293b">
 
+  <title>Whisper – Terms of Service</title>
+  <meta name="title" content="Whisper – Terms of Service">
+  <meta name="description" content="Terms of Service for Whisper, a peaceful, anonymous chatroom.">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="whisper.arsan.my/tos.html">
+  <meta property="og:title" content="Whisper – Terms of Service">
+  <meta property="og:description" content="Terms of Service for Whisper, a peaceful, anonymous chatroom.">
+  <meta property="og:image" content="/wr-banner.png">
+
+  <!-- X (Twitter) -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="whisper.arsan.my/tos.html">
+  <meta property="twitter:title" content="Whisper – Terms of Service">
+  <meta property="twitter:description" content="Terms of Service for Whisper, a peaceful, anonymous chatroom.">
+  <meta property="twitter:image" content="/wr-banner.png">
+
+  <!-- Fonts & Tailwind CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    /* Whisper colour scheme & overrides */
     body {
       background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
-      min-height: 100dvh;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      min-height: 100vh;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      padding: 2rem 1rem;
+      flex-direction: column;
     }
-
     .glass-card {
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(20px);
-      border-radius: 2.5rem;
-      padding: 2.5rem;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      max-width: 800px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 2rem;
     }
-
-    h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #ffffff, #cbd5e1);
-      background-clip: text;
-      -webkit-background-clip: text;
-      color: transparent;
-      margin-bottom: 1.5rem;
-      text-align: center;
+    .prose {
+      --tw-prose-body: #d1d5db;
+      --tw-prose-headings: #f3f4f6;
+      --tw-prose-lead: #9ca3af;
+      --tw-prose-links: #a5b4fc;
+      --tw-prose-bold: #f3f4f6;
+      --tw-prose-counters: #6b7280;
+      --tw-prose-bullets: #4b5563;
+      --tw-prose-hr: #374151;
+      --tw-prose-quotes: #e5e7eb;
+      --tw-prose-quote-borders: #818cf8;
+      --tw-prose-captions: #9ca3af;
+      --tw-prose-code: #f3f4f6;
+      --tw-prose-pre-code: #e5e7eb;
+      --tw-prose-pre-bg: #1f2937;
+      --tw-prose-th-borders: #374151;
+      --tw-prose-td-borders: #2d3748;
     }
-
-    h2 {
-      color: #cbd5e1;
-      font-size: 1.3rem;
-      margin-top: 1.5rem;
-      margin-bottom: 0.75rem;
-      border-left: 3px solid #818cf8;
-      padding-left: 0.75rem;
-    }
-
-    p, li {
-      color: #e2e8f0;
-      line-height: 1.5;
-      margin-bottom: 0.75rem;
-    }
-
-    ul {
-      margin-left: 1.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .back-link {
-      display: inline-block;
-      margin-top: 2rem;
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      color: white;
-      padding: 0.7rem 1.8rem;
-      border-radius: 60px;
+    .prose a {
       text-decoration: none;
-      font-weight: 500;
+      border-bottom: 1px solid #818cf8;
+      transition: border-color 0.2s ease;
+    }
+    .prose a:hover {
+      border-bottom-color: #a5b4fc;
+    }
+    .btn-back {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       transition: all 0.2s;
     }
-
-    .back-link:hover {
-      transform: scale(0.97);
-      background: linear-gradient(135deg, #818cf8, #a5b4fc);
+    .btn-back:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: scale(0.98);
     }
-
-    hr {
-      margin: 1rem 0;
-      border-color: rgba(255, 255, 255, 0.1);
+    footer {
+      margin-top: auto;
+      background: rgba(10, 14, 23, 0.4);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
-
-    .footer {
-      text-align: center;
-      font-size: 0.8rem;
-      color: #94a3b8;
-      margin-top: 2rem;
+    footer a {
+      color: #a5b4fc;
+      text-decoration: none;
+      border-bottom: 1px dotted #a5b4fc;
+      transition: color 0.2s;
+    }
+    footer a:hover {
+      color: #c7d2fe;
+      border-bottom-color: #c7d2fe;
+    }
+    /* Responsive spacing adjustments */
+    @media (max-width: 640px) {
+      .glass-card {
+        border-radius: 1.5rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="glass-card">
-    <h1>Terms of Service</h1>
-    <p><strong>Last updated:</strong> May 2026</p>
-
-    <h2>1. Acceptance of Terms</h2>
-    <p>By accessing or using Whisper ("the Service"), you agree to be bound by the following terms. if you do not agree, please do not use the Service.</p>
-
-    <h2>2. Description of Service</h2>
-    <p>Whisper is an anonymous chatroom that assigns each user a unique, never‑reused name and avatar. Messages are visible to all participants in the same room. Push notifications are optional and can be enabled only with your permission.</p>
-
-    <h2>3. User Conduct</h2>
-    <p>You agree not to:</p>
-    <ul>
-      <li>Use the Service for any illegal purpose or to transmit illegal content.</li>
-      <li>Harass, abuse, or threaten other users.</li>
-      <li>Post spam, malware, or any harmful links.</li>
-      <li>Impersonate any person, entity, or falsely state your affiliation.</li>
-      <li>Attempt to bypass any access restrictions or interfere with the operation of the Service.</li>
-    </ul>
-    <p>We reserve the right to remove any content and block access at our sole discretion.</p>
-
-    <h2>4. Privacy & Data Collection</h2>
-    <p>Whisper collects the following information:</p>
-    <ul>
-      <li><strong>Messages</strong> – only the 500 most recent messages are stored within our server.</li>
-      <li><strong>Unique user ID</strong> – generated and stored in your browser’s local storage to preserve your name and avatar across sessions.</li>
-    </ul>
-    <p>We do not sell or share personal data with third parties. By using the Service, you consent to this collection and processing.</p>
-
-    <h2>5. No Guarantee of Anonymity</h2>
-    <p>While Whisper does not require registration and assigns random names, we cannot guarantee absolute anonymity against sophisticated adversaries or law enforcement requests.</p>
-
-    <h2>6. Age Restriction</h2>
-    <p>The Service is not intended for children under 13 (or under 16 in the EU). By using Whisper, you confirm that you are at least 13 years old.</p>
-
-    <h2>7. Disclaimer of Warranties</h2>
-    <p>The Service is provided "as is" without warranties of any kind. We do not guarantee that the Service will be uninterrupted or error‑free. Use at your own risk.</p>
-
-    <h2>8. Limitation of Liability</h2>
-    <p>To the maximum extent permitted by law, Whisper and its operator(s) shall not be liable for any indirect, incidental, or consequential damages arising from your use or inability to use the Service.</p>
-
-    <h2>9. Changes to Terms</h2>
-    <p>We may update these Terms from time to time. Continued use of the Service after changes constitutes acceptance of the modified Terms.</p>
-
-    <h2>10. Termination</h2>
-    <p>We may suspend or terminate your access to the Service immediately for violation of these Terms or for any other reason without prior notice.</p>
-
-    <hr>
-    <div style="text-align: center;">
-      <a href="/" class="back-link">← Back to homepage</a>
+  <main class="flex-1 px-4 sm:px-6 py-6 sm:py-12 md:py-20 max-w-6xl mx-auto w-full">
+    <!-- Back link (stays compact on mobile, spacious on larger screens) -->
+    <div class="mb-5 sm:mb-8">
+      <a href="/" class="btn-back inline-flex items-center gap-1 text-[#94a3b8] hover:text-white text-xs sm:text-sm transition-colors px-3 py-1.5 sm:px-4 sm:py-2 rounded-full">
+        <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to homepage
+      </a>
     </div>
+
+    <!-- Main card: responsive padding and border-radius -->
+    <div class="glass-card p-5 sm:p-8 md:p-12">
+      <div class="border-b border-white/10 pb-4 sm:pb-6 mb-6 sm:mb-8">
+        <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-[#c7d2fe] bg-clip-text text-transparent">
+          Terms of Service
+        </h1>
+        <p class="text-[#94a3b8] mt-1 sm:mt-2 text-xs sm:text-sm">Last updated: June 2026</p>
+      </div>
+
+      <div class="prose prose-invert prose-sm sm:prose-base max-w-none">
+        <div class="space-y-6 sm:space-y-8">
+          <!-- 1. Acceptance of Terms -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              1. Acceptance of Terms
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              By accessing or using Whisper (“the Service”), you agree to be bound by the following terms. If you do not agree, please do not use the Service.
+            </p>
+          </section>
+
+          <!-- 2. Description of Service -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              2. Description of Service
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              Whisper is an anonymous chatroom that assigns each user a unique, never‑reused name and avatar. Messages are visible to all participants in the same room. Push notifications are optional and can be enabled only with your permission.
+            </p>
+          </section>
+
+          <!-- 3. User Conduct -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              3. User Conduct
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base mb-2">You agree not to:</p>
+            <ul class="list-disc pl-4 sm:pl-5 space-y-1 text-gray-300 text-sm sm:text-base marker:text-[#818cf8]">
+              <li>Use the Service for any illegal purpose or to transmit illegal content.</li>
+              <li>Harass, abuse, or threaten other users.</li>
+              <li>Post spam, malware, or any harmful links.</li>
+              <li>Impersonate any person, entity, or falsely state your affiliation.</li>
+              <li>Attempt to bypass any access restrictions or interfere with the operation of the Service.</li>
+            </ul>
+            <p class="text-gray-300 text-sm sm:text-base mt-2">We reserve the right to remove any content and block access at our sole discretion.</p>
+          </section>
+
+          <!-- 4. Privacy & Data Collection -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              4. Privacy &amp; Data Collection
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base">Whisper collects the following information:</p>
+            <ul class="list-disc pl-4 sm:pl-5 space-y-1 text-gray-300 text-sm sm:text-base marker:text-[#818cf8]">
+              <li><strong class="text-white">Messages</strong> – only the 500 most recent messages are stored within our server.</li>
+              <li><strong class="text-white">Unique user ID</strong> – generated and stored in your browser’s local storage to preserve your name and avatar across sessions.</li>
+            </ul>
+            <p class="text-gray-300 text-sm sm:text-base mt-2">We do not sell or share personal data with third parties. By using the Service, you consent to this collection and processing.</p>
+          </section>
+
+          <!-- 5. No Guarantee of Anonymity -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              5. No Guarantee of Anonymity
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              While Whisper does not require registration and assigns random names, we cannot guarantee absolute anonymity against sophisticated adversaries or law enforcement requests.
+            </p>
+          </section>
+
+          <!-- 6. Age Restriction -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              6. Age Restriction
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              The Service is not intended for children under 13 (or under 16 in the EU). By using Whisper, you confirm that you are at least 13 years old.
+            </p>
+          </section>
+
+          <!-- 7. Disclaimer of Warranties -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              7. Disclaimer of Warranties
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              The Service is provided “as is” without warranties of any kind. We do not guarantee that the Service will be uninterrupted or error‑free. Use at your own risk.
+            </p>
+          </section>
+
+          <!-- 8. Limitation of Liability -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              8. Limitation of Liability
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              To the maximum extent permitted by law, Whisper and its operator(s) shall not be liable for any indirect, incidental, or consequential damages arising from your use or inability to use the Service.
+            </p>
+          </section>
+
+          <!-- 9. Changes to Terms -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              9. Changes to Terms
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              We may update these Terms from time to time. Continued use of the Service after changes constitutes acceptance of the modified Terms.
+            </p>
+          </section>
+
+          <!-- 10. Termination -->
+          <section class="space-y-2 sm:space-y-3">
+            <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
+              <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
+              10. Termination
+            </h2>
+            <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
+              We may suspend or terminate your access to the Service immediately for violation of these Terms or for any other reason without prior notice.
+            </p>
+          </section>
+        </div>
+      </div>
+
+      <!-- subtle divider + footer note -->
+      <div class="mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-white/10 text-center text-[10px] sm:text-xs text-[#94a3b8]">
+        <p>By using Whisper, you acknowledge that you have read and understood these terms.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Site footer (matching index.html) -->
+  <footer class="py-4 px-4 text-center text-[#94a3b8] text-xs sm:text-sm">
+    Made with ☕ by <a href="https://github.com/Argzf" target="_blank" rel="noopener noreferrer">Arsan</a> · © 2025 Whisper
+  </footer>
 </body>
 </html>
