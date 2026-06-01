@@ -650,9 +650,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
         roomsModule.createRoom(sanitizedName, password || null);
         
-        // Send room creation log to Discord webhook
+        // Send room creation log to Discord
         const roomLink = `${req.protocol}://${req.get('host')}/room/${sanitizedName}`;
-        if (typeof sendRoomCreationLog === 'function') {
+        if (sendRoomCreationLog) {
             sendRoomCreationLog(sanitizedName, password || null, roomLink);
         }
         
