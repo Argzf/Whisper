@@ -15,15 +15,14 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         return req.session && req.session.authenticated === true;
     }
 
-    // Login page (GET /admin) – shown when not authenticated
-    // Also add a redirect for /admin/login to avoid 404
+    // Redirect /admin/login to /admin to prevent 404
     app.get('/admin/login', (req, res) => {
         res.redirect('/admin');
     });
 
     app.get('/admin', (req, res) => {
         if (!isAuthenticated(req)) {
-            // Show login form
+            // Login form (unchanged, clean)
             return res.send(`<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -34,10 +33,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                 <script src="https://cdn.tailwindcss.com"></script>
                 <style>
-                    body {
-                        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-                        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-                    }
+                    body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); }
                 </style>
             </head>
             <body class="min-h-screen flex items-center justify-center px-4">
@@ -60,7 +56,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </html>`);
         }
 
-        // Authenticated – show dashboard
+        // --- Authenticated Dashboard ---
         const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
         const recentMessages = messages.slice(-50).reverse();
 
@@ -68,7 +64,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         <html lang="en">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
             <title>Whisper – Admin</title>
             <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -120,10 +116,99 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 @keyframes fadeOut {
                     to { opacity: 0; transform: translateX(100%); }
                 }
+                /* Custom Modal */
+                .modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.7);
+                    backdrop-filter: blur(4px);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 2000;
+                    opacity: 0;
+                    visibility: hidden;
+                    transition: opacity 0.2s ease, visibility 0.2s;
+                }
+                .modal-overlay.active {
+                    opacity: 1;
+                    visibility: visible;
+                }
+                .modal-container {
+                    background: #1e293b;
+                    border-radius: 1rem;
+                    padding: 1.5rem;
+                    max-width: 90%;
+                    width: 320px;
+                    border: 1px solid #475569;
+                    box-shadow: 0 20px 35px -8px rgba(0,0,0,0.5);
+                    text-align: center;
+                }
+                .modal-title {
+                    font-size: 1.25rem;
+                    font-weight: 600;
+                    margin-bottom: 0.75rem;
+                    color: white;
+                }
+                .modal-message {
+                    color: #cbd5e1;
+                    margin-bottom: 1.5rem;
+                    font-size: 0.9rem;
+                }
+                .modal-buttons {
+                    display: flex;
+                    gap: 0.75rem;
+                    justify-content: center;
+                }
+                .modal-btn {
+                    padding: 0.5rem 1rem;
+                    border-radius: 0.5rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                    border: none;
+                }
+                .modal-confirm {
+                    background: #ef4444;
+                    color: white;
+                }
+                .modal-confirm:hover {
+                    background: #dc2626;
+                }
+                .modal-cancel {
+                    background: #475569;
+                    color: white;
+                }
+                .modal-cancel:hover {
+                    background: #334155;
+                }
+                .modal-ok {
+                    background: #3b82f6;
+                    color: white;
+                }
+                .modal-ok:hover {
+                    background: #2563eb;
+                }
+                @media (max-width: 480px) {
+                    .modal-container { width: 85%; padding: 1.25rem; }
+                    .modal-title { font-size: 1.1rem; }
+                }
             </style>
         </head>
         <body class="min-h-screen">
             <div id="toast-container"></div>
+            <!-- Custom Modal -->
+            <div id="customModal" class="modal-overlay">
+                <div class="modal-container">
+                    <div class="modal-title" id="modalTitle">Confirm</div>
+                    <div class="modal-message" id="modalMessage">Are you sure?</div>
+                    <div class="modal-buttons" id="modalButtons"></div>
+                </div>
+            </div>
+
             <div class="container mx-auto px-4 py-6 max-w-7xl">
                 <!-- Header -->
                 <div class="flex justify-between items-center mb-8">
@@ -170,7 +255,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
                 <!-- Two Column Layout -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <!-- Recent Messages (fixed height, scrollable, auto-update) -->
+                    <!-- Recent Messages -->
                     <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                         <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
                             <h2 class="text-lg font-semibold text-white">📩・Recent Messages</h2>
@@ -203,7 +288,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         html += `</div>
                     </div>
 
-                    <!-- Users List (auto-update) -->
+                    <!-- Users List -->
                     <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                         <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
                             <h2 class="text-lg font-semibold text-white">👥・Active Users (<span id="usersCount">${userList.length}</span>)</h2>
@@ -268,6 +353,47 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </div>
 
             <script>
+                // Custom Modal System
+                const modal = document.getElementById('customModal');
+                let modalResolve = null;
+
+                function showModal(title, message, buttons = [{text: 'OK', type: 'ok'}]) {
+                    return new Promise((resolve) => {
+                        modalResolve = resolve;
+                        document.getElementById('modalTitle').innerText = title;
+                        document.getElementById('modalMessage').innerText = message;
+                        const buttonsContainer = document.getElementById('modalButtons');
+                        buttonsContainer.innerHTML = '';
+                        buttons.forEach(btn => {
+                            const button = document.createElement('button');
+                            button.innerText = btn.text;
+                            button.className = 'modal-btn ' + (btn.type === 'confirm' ? 'modal-confirm' : (btn.type === 'cancel' ? 'modal-cancel' : 'modal-ok'));
+                            button.onclick = () => {
+                                closeModal();
+                                resolve(btn.value !== undefined ? btn.value : btn.text);
+                            };
+                            buttonsContainer.appendChild(button);
+                        });
+                        modal.classList.add('active');
+                    });
+                }
+
+                function closeModal() {
+                    modal.classList.remove('active');
+                }
+
+                // Replace confirm with custom modal
+                window.customConfirm = (message, title = 'Confirm') => {
+                    return showModal(title, message, [
+                        { text: 'Yes', type: 'confirm', value: true },
+                        { text: 'No', type: 'cancel', value: false }
+                    ]);
+                };
+
+                window.customAlert = (message, title = 'Notice') => {
+                    return showModal(title, message, [{ text: 'OK', type: 'ok' }]);
+                };
+
                 // Toast function
                 function showToast(message, type = 'info') {
                     const container = document.getElementById('toast-container');
@@ -286,10 +412,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
                 document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
 
-                // Socket.IO for real-time updates
                 const socket = io();
                 
-                // Helper: refresh messages list and stats
                 function refreshMessagesUI() {
                     fetch('/admin/api/messages')
                         .then(res => res.json())
@@ -320,7 +444,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                                         </div>
                                     \`;
                                 }).join('');
-                                // Delete handlers are attached via delegation below
                             }
                             document.getElementById('totalMessagesCount').innerText = data.totalCount;
                             document.getElementById('recentActivityCount').innerText = data.messages.length;
@@ -368,7 +491,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     });
                 }
                 
-                // Socket events
                 socket.on('chat message', () => { refreshMessagesUI(); refreshStatsUI(); });
                 socket.on('message deleted', () => { refreshMessagesUI(); refreshStatsUI(); });
                 socket.on('messages purged', () => { refreshMessagesUI(); refreshStatsUI(); });
@@ -377,7 +499,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 // Broadcast
                 document.getElementById('sendBroadcastBtn').addEventListener('click', async () => {
                     const text = document.getElementById('broadcastText').value.trim();
-                    if (!text) { showToast('Enter a broadcast message', 'error'); return; }
+                    if (!text) { await customAlert('Enter a broadcast message', 'Missing Input'); return; }
                     const res = await fetch('/admin/broadcast', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -388,7 +510,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         showToast('Broadcast sent', 'success');
                         document.getElementById('broadcastText').value = '';
                     } else {
-                        showToast(result.message || 'Failed', 'error');
+                        await customAlert(result.message || 'Failed to send broadcast', 'Error');
                     }
                 });
                 
@@ -396,7 +518,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 document.getElementById('applyPresetBtn').addEventListener('click', async () => {
                     const userId = document.getElementById('identityUserId').value.trim();
                     const preset = document.getElementById('presetSelect').value;
-                    if (!userId) { showToast('Enter User ID', 'error'); return; }
+                    if (!userId) { await customAlert('Please enter a User ID', 'Missing User ID'); return; }
+                    const confirmed = await customConfirm(\`Change user \${userId} to preset "\${preset}"? This will reload their chat.\`, 'Confirm Identity Change');
+                    if (!confirmed) return;
                     const res = await fetch('/admin/change-identity', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -407,7 +531,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         showToast('Preset identity applied', 'success');
                         refreshUsersUI();
                     } else {
-                        showToast(result.error || 'Failed', 'error');
+                        await customAlert(result.error || 'Failed to apply preset', 'Error');
                     }
                 });
                 
@@ -415,7 +539,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 document.getElementById('applyCustomBtn').addEventListener('click', async () => {
                     const userId = document.getElementById('identityUserId').value.trim();
                     const customName = document.getElementById('customNameInput').value.trim();
-                    if (!userId || !customName) { showToast('Enter User ID and custom name', 'error'); return; }
+                    if (!userId || !customName) { await customAlert('Please enter both User ID and a custom name', 'Missing Information'); return; }
+                    const confirmed = await customConfirm(\`Change user \${userId} to custom name "\${customName}"? This will reload their chat.\`, 'Confirm Custom Identity');
+                    if (!confirmed) return;
                     const res = await fetch('/admin/change-custom-identity', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -426,13 +552,14 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         showToast('Custom identity applied', 'success');
                         refreshUsersUI();
                     } else {
-                        showToast(result.error || 'Failed', 'error');
+                        await customAlert(result.error || 'Failed to apply custom name', 'Error');
                     }
                 });
                 
                 // Purge messages
                 document.getElementById('purgeMessagesBtn').addEventListener('click', async () => {
-                    if (!confirm('⚠️ Are you sure you want to purge ALL messages? This cannot be undone!')) return;
+                    const confirmed = await customConfirm('⚠️ Are you sure you want to purge ALL messages? This action cannot be undone!', 'Danger Zone');
+                    if (!confirmed) return;
                     const res = await fetch('/admin/purge-messages', { method: 'POST' });
                     const result = await res.json();
                     if (result.success) {
@@ -440,29 +567,29 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         refreshMessagesUI();
                         refreshStatsUI();
                     } else {
-                        showToast(result.message || 'Purge failed', 'error');
+                        await customAlert(result.message || 'Purge failed', 'Error');
                     }
                 });
                 
-                // Delete message handlers (delegation on messagesList)
+                // Delete message (delegation)
                 document.getElementById('messagesList').addEventListener('click', async (e) => {
                     const btn = e.target.closest('.delete-msg-btn');
                     if (!btn) return;
                     const id = btn.getAttribute('data-id');
-                    if (confirm('Delete this message?')) {
-                        const res = await fetch('/admin/delete-message/' + id, { method: 'POST' });
-                        const result = await res.json();
-                        if (result.success) {
-                            showToast('Message deleted', 'success');
-                            refreshMessagesUI();
-                            refreshStatsUI();
-                        } else {
-                            showToast(result.message || 'Delete failed', 'error');
-                        }
+                    const confirmed = await customConfirm('Delete this message?', 'Confirm Delete');
+                    if (!confirmed) return;
+                    const res = await fetch('/admin/delete-message/' + id, { method: 'POST' });
+                    const result = await res.json();
+                    if (result.success) {
+                        showToast('Message deleted', 'success');
+                        refreshMessagesUI();
+                        refreshStatsUI();
+                    } else {
+                        await customAlert(result.message || 'Delete failed', 'Error');
                     }
                 });
                 
-                // Initial load
+                // Initial loads
                 refreshMessagesUI();
                 refreshUsersUI();
                 refreshStatsUI();
@@ -472,7 +599,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.send(html);
     });
 
-    // --- API endpoints for real-time UI ---
+    // --- API endpoints (unchanged but ensure Admin avatar uses external URL) ---
     app.get('/admin/api/messages', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const recent = messages.slice(-50).reverse();
@@ -492,7 +619,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ totalMessages: messages.length, totalUsers: userCount, recentMessages: recentCount });
     });
 
-    // POST endpoints (all return JSON)
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
@@ -501,18 +627,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         } else {
             res.send(`<!DOCTYPE html>
             <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <title>Login Failed</title>
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-                <script src="https://cdn.tailwindcss.com"></script>
-                <style>body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);}</style>
-            </head>
+            <head><meta charset="UTF-8"><title>Login Failed</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><style>body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);}</style></head>
             <body class="min-h-screen flex items-center justify-center px-4">
                 <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50 text-center">
-                    <div class="text-red-400 mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
+                    <div class="text-red-400 mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
                     <p class="text-gray-300 mb-4">Wrong passcode. Please try again.</p>
                     <a href="/admin" class="text-indigo-400 hover:text-indigo-300 transition-colors">← Back to login</a>
                 </div>
@@ -579,7 +697,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         const presets = {
             Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
             ArGzf: { name: 'ArGzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-            Admin: { name: 'Admin', avatar: '/icons/admin-favicon.svg' },
+            Admin: { name: 'Admin', avatar: 'https://randomuser.me/api/portraits/lego/8.jpg' }, // external reliable avatar
         };
         const newIdentity = presets[preset];
         if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
