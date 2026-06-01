@@ -32,7 +32,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   
   <style>
-    /* Whisper colour scheme & overrides */
     body {
       background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
       font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -98,7 +97,6 @@
       color: #c7d2fe;
       border-bottom-color: #c7d2fe;
     }
-    /* Responsive spacing adjustments */
     @media (max-width: 640px) {
       .glass-card {
         border-radius: 1.5rem;
@@ -108,7 +106,6 @@
 </head>
 <body>
   <main class="flex-1 px-4 sm:px-6 py-6 sm:py-12 md:py-20 max-w-6xl mx-auto w-full">
-    <!-- Back link -->
     <div class="mb-5 sm:mb-8">
       <a href="/" class="btn-back inline-flex items-center gap-1 text-[#94a3b8] hover:text-white text-xs sm:text-sm transition-colors px-3 py-1.5 sm:px-4 sm:py-2 rounded-full">
         <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,7 +115,6 @@
       </a>
     </div>
 
-    <!-- Main card -->
     <div class="glass-card p-5 sm:p-8 md:p-12">
       <div class="border-b border-white/10 pb-4 sm:pb-6 mb-6 sm:mb-8">
         <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-[#c7d2fe] bg-clip-text text-transparent">
@@ -129,7 +125,6 @@
 
       <div class="prose prose-invert prose-sm sm:prose-base max-w-none">
         <div class="space-y-6 sm:space-y-8">
-          <!-- 1. Introduction -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -140,7 +135,6 @@
             </p>
           </section>
 
-          <!-- 2. Information We Collect -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -155,7 +149,6 @@
             </ul>
           </section>
 
-          <!-- 3. How We Use Your Information -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -170,7 +163,6 @@
             <p class="text-gray-300 text-sm sm:text-base mt-2">We do <strong class="text-white">not</strong> sell, rent, or trade your information with third parties for marketing purposes.</p>
           </section>
 
-          <!-- 4. Data Retention -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -183,7 +175,6 @@
             </ul>
           </section>
 
-          <!-- 5. Third-Party Services -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -194,7 +185,6 @@
             </p>
           </section>
 
-          <!-- 6. Your Rights -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -206,10 +196,9 @@
               <li>Withdraw consent for push notifications (via your browser settings).</li>
               <li>Request information about how we process your data.</li>
             </ul>
-            <p class="text-gray-300 text-sm sm:text-base mt-2">To exercise these rights, contact us at the email below.</p>
+            <p class="text-gray-300 text-sm sm:text-base mt-2">To exercise these rights, contact us as described below.</p>
           </section>
 
-          <!-- 7. Security -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -220,7 +209,6 @@
             </p>
           </section>
 
-          <!-- 8. Children's Privacy -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -231,7 +219,6 @@
             </p>
           </section>
 
-          <!-- 9. Changes to This Privacy Policy -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
@@ -242,14 +229,17 @@
             </p>
           </section>
 
-          <!-- 10. Contact Us -->
           <section class="space-y-2 sm:space-y-3">
             <h2 class="text-base sm:text-lg md:text-xl font-semibold text-white flex items-center gap-2">
               <span class="w-1 h-4 sm:h-5 bg-[#818cf8] rounded-full"></span>
               10. Contact Us
             </h2>
             <p class="text-gray-300 text-sm sm:text-base leading-relaxed">
-              If you have questions or concerns about this Privacy Policy, please contact us via GitHub: <a href="https://github.com/Argzf/rj-ds-cr/issues" target="_blank" rel="noopener noreferrer">https://github.com/Argzf/rj-ds-cr/issues</a>.
+              If you have questions or concerns about this Privacy Policy, you can contact the operator via Discord: 
+              <strong class="text-white">@gzf</strong> (User ID: <code class="text-[#a5b4fc]">935053416877666304</code>). 
+              You can send a friend request or message to that user on Discord. Alternatively, click 
+              <a href="https://discord.com/users/935053416877666304" target="_blank" rel="noopener noreferrer">this direct profile link</a> 
+              if you have Discord installed.
             </p>
           </section>
         </div>
@@ -261,7 +251,6 @@
     </div>
   </main>
 
-  <!-- Site footer -->
   <footer class="py-4 px-4 text-center text-[#94a3b8] text-xs sm:text-sm">
     Made with ☕ by <a href="https://github.com/Argzf" target="_blank" rel="noopener noreferrer">Arsan</a> · © 2026 Whisper
   </footer>
