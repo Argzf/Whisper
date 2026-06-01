@@ -149,7 +149,6 @@ function getClientIP(socket) {
     return socket.handshake.address;
 }
 
-// Helper to build room link from socket request
 function getRoomLink(socket, roomName) {
     const req = socket.request;
     const protocol = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
@@ -214,7 +213,7 @@ async function sendRoomCreationLog(roomName, password, roomLink) {
 async function sendJoinLog(name, avatar, userId, ip, roomName = null, roomLink = null) {
     if (!LOG_WEBHOOK_URL) return;
     const embed = {
-        title: roomName ? `🚪 User joined room: ${roomName}` : '🚪 User joined the chat',
+        title: roomName ? `🚪 User joined room: ${roomName}` : '🚪 User joined the main chat',
         color: 0x5865F2,
         thumbnail: { url: avatar },
         fields: [
@@ -262,7 +261,7 @@ io.on('connection', (socket) => {
         socket.userIdentity = { name, avatar, userId };
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
-        // No join log here – main chat join can be added separately if needed
+        // No join log yet – will log when user joins main chat or a room
     });
 
     // Main chat (original)
@@ -288,6 +287,14 @@ io.on('connection', (socket) => {
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
+    // Optional: main chat join event (can be sent from client when they load /chat)
+    socket.on('join main chat', async () => {
+        if (!socket.userIdentity) return;
+        const { name, avatar, userId } = socket.userIdentity;
+        const ip = getClientIP(socket);
+        await sendJoinLog(name, avatar, userId, ip);
+    });
+
     // ========== ROOM SYSTEM ==========
     socket.on('join room', async (roomName, password, callback) => {
         if (!socket.userIdentity) {
@@ -298,6 +305,7 @@ io.on('connection', (socket) => {
             callback({ success: false, error: 'Room does not exist' });
             return;
         }
+        const room = roomsModule.getRoom(roomName);
         const isValid = roomsModule.verifyRoomPassword(roomName, password);
         if (!isValid) {
             callback({ success: false, error: 'Invalid room password' });
@@ -378,19 +386,20 @@ app.get('/room/:roomName', (req, res) => {
     const roomIndicator = `<div class="tagline ml-2" style="background:rgba(99,102,241,0.2);">${room.hasPassword ? '🔒 Private' : '🔓 Public'}</div>`;
     chatHtml = chatHtml.replace('<div class="tagline">Anonymous · Instant</div>', `<div class="tagline">Anonymous · Instant</div>${roomIndicator}`);
 
-    // Inject room initialization script – ensures password is sent
+    // Inject room initialization script – ensures password modal shows correctly
     const roomScript = `
     <script>
         (function() {
             const roomName = ${JSON.stringify(roomName)};
             const hasPassword = ${room.hasPassword};
-            let isRoomReady = false;
             
+            // Store original socket event listeners to remove them
             function setupRoomMode() {
                 // Remove main chat listeners
                 socket.off('chat message');
                 socket.off('load messages');
                 socket.off('load history');
+                socket.off('system message');
                 
                 // Add room listeners
                 socket.on('room chat message', (msg) => {
@@ -480,6 +489,10 @@ app.get('/room/:roomName', (req, res) => {
                                 if (typeof requestNotificationPermissionSafe === 'function') requestNotificationPermissionSafe();
                             } else {
                                 console.error('Failed to join room:', response.error);
+                                // If error says invalid password but room has no password, force reload
+                                if (response.error === 'Invalid room password' && !hasPassword) {
+                                    window.location.reload();
+                                }
                             }
                         });
                     }
