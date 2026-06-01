@@ -251,6 +251,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             </div>
                             <div class="flex gap-2">
                                 <input type="text" id="customNameInput" placeholder="Custom name" class="flex-1 px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <input type="text" id="customAvatarInput" placeholder="Avatar URL (optional)" class="flex-1 px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                 <button id="applyCustomBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Custom</button>
                             </div>
                         </div>
@@ -465,20 +466,23 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     }
                 });
                 
-                // Custom identity
+                // Custom identity (with avatar)
                 document.getElementById('applyCustomBtn').addEventListener('click', async () => {
                     const userId = document.getElementById('identityUserId').value.trim();
                     const customName = document.getElementById('customNameInput').value.trim();
-                    if (!userId || !customName) { showToast('Enter User ID and custom name', 'error'); return; }
+                    const customAvatar = document.getElementById('customAvatarInput').value.trim();
+                    if (!userId || !customName) { showToast('Enter User ID and a name', 'error'); return; }
                     const res = await fetch('/admin/change-custom-identity', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId, customName })
+                        body: JSON.stringify({ userId, customName, customAvatar: customAvatar || null })
                     });
                     const result = await res.json();
                     if (result.success) {
                         showToast('Custom identity applied', 'success');
                         refreshUsersUI();
+                        document.getElementById('customNameInput').value = '';
+                        document.getElementById('customAvatarInput').value = '';
                     } else {
                         showToast(result.error || 'Failed', 'error');
                     }
@@ -805,7 +809,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
     app.post('/admin/change-custom-identity', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const { userId, customName } = req.body;
+        const { userId, customName, customAvatar } = req.body;
         if (!userId || !customName || customName.trim() === '') {
             return res.status(400).json({ error: 'User ID and custom name are required' });
         }
@@ -816,7 +820,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
         const oldName = userMappings[userId].name;
+        const oldAvatar = userMappings[userId].avatar;
         userMappings[userId].name = newName;
+        if (customAvatar && customAvatar.trim() !== '') {
+            userMappings[userId].avatar = customAvatar.trim();
+        }
         saveUserMappings();
 
         if (oldName && takenNames.has(oldName)) {
@@ -829,7 +837,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
 
         io.emit('force-reload-identity', { userId });
-        console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"`);
+        console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"${customAvatar ? ' and avatar' : ''}`);
         res.json({ success: true });
     });
 
