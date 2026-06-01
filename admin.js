@@ -245,7 +245,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     // Dynamic welcome
                     const hour = new Date().getHours();
                     let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-                    document.getElementById('welcomeMessage').innerText = greeting + ', Handsome.';
+                    document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
 
                     // Socket.IO for real-time updates
                     const socket = io();
@@ -448,8 +448,41 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </html>`;
             res.send(html);
         } else {
-            // Login page (unchanged, same as before)
-            res.send(`...`); // keep the existing login page to avoid repetition
+            // COMPLETE LOGIN PAGE - FIXED
+            res.send(`<!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Admin Login</title>
+                <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>
+                    body {
+                        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                    }
+                </style>
+            </head>
+            <body class="min-h-screen flex items-center justify-center px-4">
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50">
+                    <div class="flex justify-center mb-6">
+                        <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-8 h-8 text-white">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <h2 class="text-2xl font-bold text-center text-white mb-2">Admin Access</h2>
+                    <p class="text-center text-gray-400 mb-6">Please enter the passcode to continue</p>
+                    <form action="/admin/login" method="POST" class="space-y-4">
+                        <input type="password" name="passcode" placeholder="Enter passcode" autofocus class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Login</button>
+                    </form>
+                </div>
+            </body>
+            </html>`);
         }
     });
 
