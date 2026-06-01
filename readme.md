@@ -73,8 +73,8 @@ The design is minimal, the colors are calm, and the only goal is to let you **sp
 - **Privacy Policy** – [`/privacy-policy`](https://whisper.arsan.my/privacy-policy)
 - **FAQ** – [`/faq`](https://whisper.arsan.my/faq)
 
-**Maintainer**: [Arsan (Argzf)](https://github.com/Argzf)  
-📬 Discord: `@gzf` (User ID `935053416877666304`)
+**Maintainer**: [Arsan](https://github.com/Argzf)  
+📬 Discord: [`@gzf`](https://discord.com/users/935053416877666304) (User ID `935053416877666304`)
 
 ---
 
