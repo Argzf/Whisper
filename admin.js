@@ -27,6 +27,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Whisper – Admin</title>
+                <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                 <script src="https://cdn.tailwindcss.com"></script>
                 <style>
@@ -73,7 +74,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </head>
             <body class="min-h-screen">
                 <div class="container mx-auto px-4 py-6 max-w-7xl">
-                    <!-- Header -->
+                    <!-- Header with dynamic welcome -->
                     <div class="flex justify-between items-center mb-8">
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
@@ -81,15 +82,14 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
                             </div>
-                            <h1 class="text-2xl font-bold bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">Admin Dashboard</h1>
-                        </div>
-                        <div class="flex items-center gap-4">
-                            <span class="text-sm text-gray-400">Welcome, Admin</span>
-                            <a href="/admin/logout" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors shadow-md">Logout</a>
+                            <div>
+                                <h1 class="text-2xl font-bold bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">Admin Dashboard</h1>
+                                <p class="text-sm text-gray-400" id="welcomeMessage"></p>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Stats Overview (optional, can be removed if not needed) -->
+                    <!-- Stats Overview -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                         <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50 card">
                             <div class="flex items-center justify-between">
@@ -137,7 +137,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         <!-- Recent Messages -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                             <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
-                                <h2 class="text-lg font-semibold text-white">📩 Recent Messages</h2>
+                                <h2 class="text-lg font-semibold text-white">📩・Recent Messages</h2>
                             </div>
                             <div class="p-4 max-h-[400px] overflow-y-auto">`;
             if (recentMessages.length === 0) {
@@ -172,7 +172,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         <!-- Users List -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                             <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
-                                <h2 class="text-lg font-semibold text-white">👥 Active Users (${userList.length})</h2>
+                                <h2 class="text-lg font-semibold text-white">👥・Active Users (${userList.length})</h2>
                             </div>
                             <div class="p-4 max-h-[400px] overflow-y-auto">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">`;
@@ -196,7 +196,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         <!-- Broadcast Message -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
                             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                <span>📢</span> Broadcast Message
+                                <span>📢</span>・Broadcast Message
                             </h2>
                             <form action="/admin/broadcast" method="POST" class="space-y-3">
                                 <input type="text" name="broadcastText" placeholder="Enter your announcement..." class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -204,50 +204,109 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             </form>
                         </div>
 
-                        <!-- Change Identity (Presets) -->
+                        <!-- Merged Identity Section -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
                             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                <span>🔄</span> Preset Identity
+                                <span>🔄</span>・Change Identity
                             </h2>
-                            <form action="/admin/change-identity" method="POST" class="space-y-3">
-                                <input type="text" name="userId" placeholder="User ID" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <select name="preset" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                    <option value="Arsan">Arsan</option>
-                                    <option value="ArGzf">ArGzf</option>
-                                    <option value="Admin">Admin</option>
-                                </select>
-                                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Preset</button>
-                            </form>
+                            <div class="space-y-4">
+                                <!-- User ID field (shared) -->
+                                <input type="text" id="identityUserId" placeholder="User ID" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                
+                                <!-- Preset dropdown + button -->
+                                <div class="flex gap-2">
+                                    <select id="presetSelect" class="flex-1 px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="Arsan">Arsan</option>
+                                        <option value="ArGzf">ArGzf</option>
+                                        <option value="Admin">Admin</option>
+                                    </select>
+                                    <button type="button" id="applyPresetBtn" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Preset</button>
+                                </div>
+                                
+                                <!-- Custom name input + button -->
+                                <div class="flex gap-2">
+                                    <input type="text" id="customNameInput" placeholder="Custom name" class="flex-1 px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <button type="button" id="applyCustomBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Custom</button>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Custom Identity -->
-                        <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
-                            <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                                <span>✏️</span> Custom Identity
-                            </h2>
-                            <form action="/admin/change-custom-identity" method="POST" class="space-y-3">
-                                <input type="text" name="userId" placeholder="User ID" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <input type="text" name="customName" placeholder="New Custom Name" class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Apply Custom Name</button>
-                            </form>
-                        </div>
-
-                        <!-- Danger Zone -->
+                        <!-- Danger Zone (with Logout) -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
                             <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">
-                                <span>⚠️</span> Danger Zone
+                                <span>⚠️</span>・Danger Zone
                             </h2>
-                            <form action="/admin/purge-messages" method="POST" onsubmit="return confirm('⚠️ Are you sure you want to purge ALL messages? This action cannot be undone!');">
-                                <button type="submit" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
-                            </form>
+                            <div class="space-y-3">
+                                <form action="/admin/purge-messages" method="POST" onsubmit="return confirm('⚠️ Are you sure you want to purge ALL messages? This action cannot be undone!');">
+                                    <button type="submit" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
+                                </form>
+                                <a href="/admin/logout" class="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-medium transition-colors shadow-lg">🚪 Logout</a>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <script>
+                    // Dynamic welcome message based on device time
+                    const hour = new Date().getHours();
+                    let greeting = '';
+                    if (hour < 12) greeting = 'Good morning';
+                    else if (hour < 18) greeting = 'Good afternoon';
+                    else greeting = 'Good evening';
+                    document.getElementById('welcomeMessage').innerText = \`\${greeting}, Admin.\`;
+
+                    // Identity form handlers (use fetch to avoid page reload)
+                    document.getElementById('applyPresetBtn').addEventListener('click', async () => {
+                        const userId = document.getElementById('identityUserId').value.trim();
+                        const preset = document.getElementById('presetSelect').value;
+                        if (!userId) {
+                            alert('Please enter a User ID');
+                            return;
+                        }
+                        const formData = new URLSearchParams();
+                        formData.append('userId', userId);
+                        formData.append('preset', preset);
+                        const response = await fetch('/admin/change-identity', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: formData
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            alert('Identity changed successfully! User will be reloaded.');
+                        } else {
+                            alert('Error: ' + result.error);
+                        }
+                    });
+
+                    document.getElementById('applyCustomBtn').addEventListener('click', async () => {
+                        const userId = document.getElementById('identityUserId').value.trim();
+                        const customName = document.getElementById('customNameInput').value.trim();
+                        if (!userId || !customName) {
+                            alert('Please enter both User ID and a custom name');
+                            return;
+                        }
+                        const formData = new URLSearchParams();
+                        formData.append('userId', userId);
+                        formData.append('customName', customName);
+                        const response = await fetch('/admin/change-custom-identity', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: formData
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            alert('Custom identity applied! User will be reloaded.');
+                        } else {
+                            alert('Error: ' + result.error);
+                        }
+                    });
+                </script>
             </body>
             </html>`;
             res.send(html);
         } else {
-            // Login page – fully centered with consistent styling
+            // Login page – fully centered, consistent styling, with favicon
             res.send(`
                 <!DOCTYPE html>
                 <html lang="en">
@@ -255,6 +314,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>Admin Login</title>
+                    <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
                     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                     <script src="https://cdn.tailwindcss.com"></script>
                     <style>
@@ -300,6 +360,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>Admin Login</title>
+                    <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
                     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                     <script src="https://cdn.tailwindcss.com"></script>
                     <style>
@@ -383,7 +444,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.redirect('/admin');
     });
 
-    // Preset identity change (unchanged)
+    // Preset identity change (unchanged logic)
     app.post('/admin/change-identity', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const { preset, userId } = req.body;
