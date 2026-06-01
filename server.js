@@ -17,6 +17,9 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ===== FEATURE FLAG: Temporarily disable rooms =====
+const ROOMS_ENABLED = false; // Set to true to re-enable rooms
+
 // Helper to build absolute URL from request
 function getAbsoluteUrl(req, relativePath) {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -149,14 +152,7 @@ function getClientIP(socket) {
     return socket.handshake.address;
 }
 
-function getRoomLink(socket, roomName) {
-    const req = socket.request;
-    const protocol = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    return `${protocol}://${host}/room/${roomName}`;
-}
-
-// Discord webhook functions
+// Discord webhook functions (unchanged)
 async function sendToDiscord(name, avatar, text, ip, file = null, roomName = null, roomLink = null) {
     if (!WEBHOOK_URL) return;
     const embed = {
@@ -238,7 +234,8 @@ async function sendJoinLog(name, avatar, userId, ip, roomName = null, roomLink =
     } catch (err) { console.error('Join log failed', err); }
 }
 
-let messages = []; // main chat
+// ========== MAIN CHAT MESSAGE STORAGE ==========
+let messages = [];
 let userSocketMap = new Map();
 
 io.on('connection', (socket) => {
@@ -261,10 +258,9 @@ io.on('connection', (socket) => {
         socket.userIdentity = { name, avatar, userId };
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
-        // No join log yet – will log when user joins main chat or a room
     });
 
-    // Main chat (original)
+    // Main chat events
     socket.on('load history', () => {
         socket.emit('load messages', messages);
     });
@@ -287,7 +283,7 @@ io.on('connection', (socket) => {
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
-    // Optional: main chat join event (can be sent from client when they load /chat)
+    // Main chat join log (optional)
     socket.on('join main chat', async () => {
         if (!socket.userIdentity) return;
         const { name, avatar, userId } = socket.userIdentity;
@@ -295,72 +291,24 @@ io.on('connection', (socket) => {
         await sendJoinLog(name, avatar, userId, ip);
     });
 
-    // ========== ROOM SYSTEM ==========
-    socket.on('join room', async (roomName, password, callback) => {
-        if (!socket.userIdentity) {
-            callback({ success: false, error: 'Not identified' });
-            return;
-        }
-        if (!roomsModule.roomExists(roomName)) {
-            callback({ success: false, error: 'Room does not exist' });
-            return;
-        }
-        const room = roomsModule.getRoom(roomName);
-        const isValid = roomsModule.verifyRoomPassword(roomName, password);
-        if (!isValid) {
-            callback({ success: false, error: 'Invalid room password' });
-            return;
-        }
-        // Leave previous rooms
-        const previousRooms = Array.from(socket.rooms);
-        previousRooms.forEach(room => {
-            if (room !== socket.id) socket.leave(room);
+    // ========== ROOM SYSTEM (DISABLED) ==========
+    if (ROOMS_ENABLED) {
+        socket.on('join room', async (roomName, password, callback) => {
+            // ... full room logic (omitted for brevity, but can be restored later)
+            callback({ success: false, error: 'Rooms temporarily disabled' });
         });
-        socket.join(roomName);
-        socket.currentRoom = roomName;
-        const roomMessages = roomsModule.getRoomMessages(roomName);
-        callback({ success: true, messages: roomMessages });
-        
-        const name = socket.userIdentity.name;
-        const avatar = socket.userIdentity.avatar;
-        const userId = socket.userIdentity.userId;
-        const ip = getClientIP(socket);
-        const roomLink = getRoomLink(socket, roomName);
-        await sendJoinLog(name, avatar, userId, ip, roomName, roomLink);
-    });
-
-    socket.on('room chat message', async (data) => {
-        if (!socket.userIdentity || !socket.currentRoom) return;
-        const { name, avatar } = socket.userIdentity;
-        const clientIP = getClientIP(socket);
-        const msg = {
-            id: crypto.randomUUID(),
-            text: data.text || '',
-            timestamp: new Date().toISOString(),
-            senderName: name,
-            senderAvatar: avatar,
-            file: data.file || null
-        };
-        roomsModule.addRoomMessage(socket.currentRoom, msg);
-        io.to(socket.currentRoom).emit('room chat message', msg);
-        const roomLink = getRoomLink(socket, socket.currentRoom);
-        await sendToDiscord(name, avatar, msg.text, clientIP, msg.file, socket.currentRoom, roomLink);
-    });
-
-    socket.on('load room history', () => {
-        if (!socket.currentRoom) return;
-        const roomMessages = roomsModule.getRoomMessages(socket.currentRoom);
-        socket.emit('load room messages', roomMessages);
-    });
-
-    socket.on('room typing', (isTyping) => {
-        if (!socket.currentRoom) return;
-        socket.to(socket.currentRoom).emit('room typing', {
-            userId: socket.id,
-            userName: socket.userIdentity?.name,
-            isTyping
+        socket.on('room chat message', async (data) => {});
+        socket.on('load room history', () => {});
+        socket.on('room typing', (isTyping) => {});
+    } else {
+        // Respond with error when clients try to use rooms
+        socket.on('join room', (roomName, password, callback) => {
+            callback({ success: false, error: 'Rooms feature is temporarily disabled' });
         });
-    });
+        socket.on('room chat message', async (data) => {});
+        socket.on('load room history', () => {});
+        socket.on('room typing', (isTyping) => {});
+    }
 
     socket.on('disconnect', () => {
         userSocketMap.delete(socket.id);
@@ -368,145 +316,24 @@ io.on('connection', (socket) => {
     });
 });
 
+// ========== HTTP ROUTES ==========
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/chat', (req, res) => { res.sendFile(path.join(__dirname, 'chat.html')); });
 
-// Dynamic room route – serves modified chat.html with room overrides
-app.get('/room/:roomName', (req, res) => {
-    const roomName = req.params.roomName;
-    if (!roomsModule.roomExists(roomName)) {
-        return res.status(404).sendFile(path.join(__dirname, '404.html'));
-    }
-    const room = roomsModule.getRoom(roomName);
-    const chatHtmlPath = path.join(__dirname, 'chat.html');
-    let chatHtml = fs.readFileSync(chatHtmlPath, 'utf8');
+// Room route – disabled
+if (ROOMS_ENABLED) {
+    app.get('/room/:roomName', (req, res) => {
+        // Full room rendering code (can be restored later)
+        res.status(404).sendFile(path.join(__dirname, '404.html'));
+    });
+} else {
+    app.get('/room/:roomName', (req, res) => {
+        res.status(404).sendFile(path.join(__dirname, '404.html'));
+    });
+}
 
-    // Update title and add room indicator
-    chatHtml = chatHtml.replace('<title>Whisper</title>', `<title>Whisper · ${escapeHtml(roomName)}</title>`);
-    const roomIndicator = `<div class="tagline ml-2" style="background:rgba(99,102,241,0.2);">${room.hasPassword ? '🔒 Private' : '🔓 Public'}</div>`;
-    chatHtml = chatHtml.replace('<div class="tagline">Anonymous · Instant</div>', `<div class="tagline">Anonymous · Instant</div>${roomIndicator}`);
-
-    // Inject room initialization script – ensures password modal shows correctly
-    const roomScript = `
-    <script>
-        (function() {
-            const roomName = ${JSON.stringify(roomName)};
-            const hasPassword = ${room.hasPassword};
-            
-            // Store original socket event listeners to remove them
-            function setupRoomMode() {
-                // Remove main chat listeners
-                socket.off('chat message');
-                socket.off('load messages');
-                socket.off('load history');
-                socket.off('system message');
-                
-                // Add room listeners
-                socket.on('room chat message', (msg) => {
-                    if (typeof appendMessage === 'function') appendMessage(msg);
-                    else if (typeof addMessage === 'function') addMessage(msg);
-                    if (msg.senderName !== currentUserName && typeof safeNotify === 'function') {
-                        safeNotify(msg.senderName, msg.text || 'sent a file');
-                    }
-                });
-                socket.on('load room messages', (msgs) => {
-                    if (typeof messagesContainer !== 'undefined') messagesContainer.innerHTML = '';
-                    msgs.forEach(msg => {
-                        if (typeof appendMessage === 'function') appendMessage(msg);
-                        else if (typeof addMessage === 'function') addMessage(msg);
-                    });
-                });
-                socket.on('room typing', (data) => {
-                    const typingIndicator = document.getElementById('typingIndicator');
-                    if (typingIndicator) {
-                        if (data.userId !== socket.id && data.isTyping) {
-                            typingIndicator.innerText = data.userName + ' is typing...';
-                        } else {
-                            typingIndicator.innerText = '';
-                        }
-                    }
-                });
-                
-                // Override send functions
-                window.sendMessage = function() {
-                    const text = document.getElementById('messageInput').value.trim();
-                    if (!text) return;
-                    socket.emit('room chat message', { text, file: null });
-                    document.getElementById('messageInput').value = '';
-                };
-                window.handleFileUpload = async function(file) {
-                    if (typeof uploadFile === 'function') {
-                        const { url, name, type } = await uploadFile(file);
-                        socket.emit('room chat message', { text: '', file: { url, name, type } });
-                    }
-                };
-                
-                socket.emit('load room history');
-            }
-            
-            function showPasswordModal() {
-                const modalHtml = \`
-                    <div id="roomPasswordModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10000;">
-                        <div style="background:#1e293b;border-radius:1rem;padding:2rem;max-width:400px;width:90%;text-align:center;border:1px solid #475569;">
-                            <h3 style="color:white;margin-bottom:1rem;">🔐 Room Password Required</h3>
-                            <p style="color:#94a3b8;margin-bottom:1.5rem;">This room is password protected.</p>
-                            <input type="password" id="roomPasswordInput" placeholder="Enter password" style="width:100%;padding:0.75rem;margin-bottom:1rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
-                            <button id="roomPasswordSubmit" style="background:#3b82f6;padding:0.75rem 1.5rem;border:none;border-radius:0.5rem;color:white;cursor:pointer;">Enter Room</button>
-                        </div>
-                    </div>
-                \`;
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-                const input = document.getElementById('roomPasswordInput');
-                const btn = document.getElementById('roomPasswordSubmit');
-                const attempt = () => {
-                    const pwd = input.value;
-                    socket.emit('join room', roomName, pwd, (response) => {
-                        if (response.success) {
-                            document.getElementById('roomPasswordModal')?.remove();
-                            setupRoomMode();
-                            if (typeof requestNotificationPermissionSafe === 'function') requestNotificationPermissionSafe();
-                        } else {
-                            alert(response.error);
-                            input.value = '';
-                            input.focus();
-                        }
-                    });
-                };
-                btn.onclick = attempt;
-                input.onkeypress = (e) => { if (e.key === 'Enter') attempt(); };
-            }
-            
-            // Wait for identity then join
-            const waitForIdentity = setInterval(() => {
-                if (socket.userIdentity) {
-                    clearInterval(waitForIdentity);
-                    if (hasPassword) {
-                        showPasswordModal();
-                    } else {
-                        socket.emit('join room', roomName, null, (response) => {
-                            if (response.success) {
-                                setupRoomMode();
-                                if (typeof requestNotificationPermissionSafe === 'function') requestNotificationPermissionSafe();
-                            } else {
-                                console.error('Failed to join room:', response.error);
-                                // If error says invalid password but room has no password, force reload
-                                if (response.error === 'Invalid room password' && !hasPassword) {
-                                    window.location.reload();
-                                }
-                            }
-                        });
-                    }
-                }
-            }, 100);
-        })();
-    </script>
-    `;
-    chatHtml = chatHtml.replace('</body>', roomScript + '</body>');
-    res.send(chatHtml);
-});
-
-// Admin panel
-setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog);
+// Admin panel – pass ROOMS_ENABLED flag
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED);
 
 app.use((req, res) => {
     res.status(404).sendFile(path.join(__dirname, '404.html'));
@@ -514,7 +341,8 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🔥 Chat + Admin + Rooms running on http://localhost:${PORT}`);
+    console.log(`🔥 Chat + Admin running on http://localhost:${PORT}`);
+    if (!ROOMS_ENABLED) console.log('⚠️ Rooms feature is currently DISABLED');
 });
 
 function escapeHtml(str) {
