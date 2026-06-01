@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const roomsModule = require('./rooms');
 
 function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings) {
     function escapeHtml(str) {
@@ -15,14 +16,14 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         return req.session && req.session.authenticated === true;
     }
 
-    // Redirect /admin/login to /admin to prevent 404
+    // Redirect /admin/login to /admin to avoid 404
     app.get('/admin/login', (req, res) => {
         res.redirect('/admin');
     });
 
     app.get('/admin', (req, res) => {
         if (!isAuthenticated(req)) {
-            // Login form (unchanged, clean)
+            // Show login form
             return res.send(`<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -33,7 +34,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                 <script src="https://cdn.tailwindcss.com"></script>
                 <style>
-                    body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); }
+                    body {
+                        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                    }
                 </style>
             </head>
             <body class="min-h-screen flex items-center justify-center px-4">
@@ -56,15 +60,16 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </html>`);
         }
 
-        // --- Authenticated Dashboard ---
+        // --- Authenticated dashboard ---
         const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
         const recentMessages = messages.slice(-50).reverse();
+        const allRooms = roomsModule.getAllRooms();
 
         let html = `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Whisper – Admin</title>
             <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -84,7 +89,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 .message-card { transition: all 0.2s ease; }
                 .message-card:hover { background: rgba(51, 65, 85, 0.8); transform: translateX(2px); }
                 .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-                /* Toast container */
                 #toast-container {
                     position: fixed;
                     bottom: 20px;
@@ -116,99 +120,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 @keyframes fadeOut {
                     to { opacity: 0; transform: translateX(100%); }
                 }
-                /* Custom Modal */
-                .modal-overlay {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0,0,0,0.7);
-                    backdrop-filter: blur(4px);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 2000;
-                    opacity: 0;
-                    visibility: hidden;
-                    transition: opacity 0.2s ease, visibility 0.2s;
-                }
-                .modal-overlay.active {
-                    opacity: 1;
-                    visibility: visible;
-                }
-                .modal-container {
-                    background: #1e293b;
-                    border-radius: 1rem;
-                    padding: 1.5rem;
-                    max-width: 90%;
-                    width: 320px;
-                    border: 1px solid #475569;
-                    box-shadow: 0 20px 35px -8px rgba(0,0,0,0.5);
-                    text-align: center;
-                }
-                .modal-title {
-                    font-size: 1.25rem;
-                    font-weight: 600;
-                    margin-bottom: 0.75rem;
-                    color: white;
-                }
-                .modal-message {
-                    color: #cbd5e1;
-                    margin-bottom: 1.5rem;
-                    font-size: 0.9rem;
-                }
-                .modal-buttons {
-                    display: flex;
-                    gap: 0.75rem;
-                    justify-content: center;
-                }
-                .modal-btn {
-                    padding: 0.5rem 1rem;
-                    border-radius: 0.5rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                    border: none;
-                }
-                .modal-confirm {
-                    background: #ef4444;
-                    color: white;
-                }
-                .modal-confirm:hover {
-                    background: #dc2626;
-                }
-                .modal-cancel {
-                    background: #475569;
-                    color: white;
-                }
-                .modal-cancel:hover {
-                    background: #334155;
-                }
-                .modal-ok {
-                    background: #3b82f6;
-                    color: white;
-                }
-                .modal-ok:hover {
-                    background: #2563eb;
-                }
-                @media (max-width: 480px) {
-                    .modal-container { width: 85%; padding: 1.25rem; }
-                    .modal-title { font-size: 1.1rem; }
-                }
             </style>
         </head>
         <body class="min-h-screen">
             <div id="toast-container"></div>
-            <!-- Custom Modal -->
-            <div id="customModal" class="modal-overlay">
-                <div class="modal-container">
-                    <div class="modal-title" id="modalTitle">Confirm</div>
-                    <div class="modal-message" id="modalMessage">Are you sure?</div>
-                    <div class="modal-buttons" id="modalButtons"></div>
-                </div>
-            </div>
-
             <div class="container mx-auto px-4 py-6 max-w-7xl">
                 <!-- Header -->
                 <div class="flex justify-between items-center mb-8">
@@ -310,8 +225,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     </div>
                 </div>
 
-                <!-- Action Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Action Cards Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <!-- Broadcast -->
                     <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
                         <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">📢・Broadcast Message</h2>
@@ -340,60 +255,59 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Danger Zone -->
-                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
-                        <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
-                        <div class="space-y-3">
-                            <button id="purgeMessagesBtn" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
-                            <a href="/admin/logout" class="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-medium transition-colors shadow-lg">🚪 Logout</a>
-                        </div>
+                <!-- Room Management Card -->
+                <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-white flex items-center gap-2">🏠・Rooms</h2>
+                        <button id="createRoomBtn" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm transition-colors shadow">+ New Room</button>
+                    </div>
+                    <div id="roomsList" class="space-y-2 max-h-64 overflow-y-auto">
+                        ${Object.entries(allRooms).map(([name, room]) => `
+                            <div class="bg-gray-800/60 rounded-lg p-3 flex justify-between items-center border border-gray-700/30" data-room-name="${name}">
+                                <div class="flex-1">
+                                    <div class="font-medium text-white">${escapeHtml(name)}</div>
+                                    <div class="text-xs text-gray-400 mt-1">${room.hasPassword ? '🔒 Password protected' : '🔓 Public'}</div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button class="edit-room-btn bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-sm transition-colors" data-room="${name}" data-password="${room.password || ''}">Edit</button>
+                                    <button class="delete-room-btn bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg text-sm transition-colors" data-room="${name}">Delete</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
+                    <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
+                    <div class="space-y-3">
+                        <button id="purgeMessagesBtn" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
+                        <a href="/admin/logout" class="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-medium transition-colors shadow-lg">🚪 Logout</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Modal -->
+            <div id="customModal" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;z-index:2000;">
+                <div style="background:#1e293b;border-radius:1rem;padding:1.5rem;max-width:500px;width:90%;margin:20px;text-align:center;">
+                    <h3 id="modalTitle" style="color:white;margin-bottom:1rem;"></h3>
+                    <p id="modalMessage" style="color:#94a3b8;margin-bottom:1.5rem;"></p>
+                    <div id="modalInputGroup" style="margin-bottom:1.5rem;display:none;">
+                        <input type="text" id="modalInput" placeholder="" style="width:100%;padding:0.75rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
+                    </div>
+                    <div id="modalPasswordGroup" style="margin-bottom:1.5rem;display:none;">
+                        <input type="password" id="modalPassword" placeholder="Room password (optional)" style="width:100%;padding:0.75rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
+                    </div>
+                    <div class="flex gap-2 justify-center">
+                        <button id="modalConfirmBtn" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors">Confirm</button>
+                        <button id="modalCancelBtn" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">Cancel</button>
                     </div>
                 </div>
             </div>
 
             <script>
-                // Custom Modal System
-                const modal = document.getElementById('customModal');
-                let modalResolve = null;
-
-                function showModal(title, message, buttons = [{text: 'OK', type: 'ok'}]) {
-                    return new Promise((resolve) => {
-                        modalResolve = resolve;
-                        document.getElementById('modalTitle').innerText = title;
-                        document.getElementById('modalMessage').innerText = message;
-                        const buttonsContainer = document.getElementById('modalButtons');
-                        buttonsContainer.innerHTML = '';
-                        buttons.forEach(btn => {
-                            const button = document.createElement('button');
-                            button.innerText = btn.text;
-                            button.className = 'modal-btn ' + (btn.type === 'confirm' ? 'modal-confirm' : (btn.type === 'cancel' ? 'modal-cancel' : 'modal-ok'));
-                            button.onclick = () => {
-                                closeModal();
-                                resolve(btn.value !== undefined ? btn.value : btn.text);
-                            };
-                            buttonsContainer.appendChild(button);
-                        });
-                        modal.classList.add('active');
-                    });
-                }
-
-                function closeModal() {
-                    modal.classList.remove('active');
-                }
-
-                // Replace confirm with custom modal
-                window.customConfirm = (message, title = 'Confirm') => {
-                    return showModal(title, message, [
-                        { text: 'Yes', type: 'confirm', value: true },
-                        { text: 'No', type: 'cancel', value: false }
-                    ]);
-                };
-
-                window.customAlert = (message, title = 'Notice') => {
-                    return showModal(title, message, [{ text: 'OK', type: 'ok' }]);
-                };
-
                 // Toast function
                 function showToast(message, type = 'info') {
                     const container = document.getElementById('toast-container');
@@ -410,8 +324,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 // Dynamic welcome
                 const hour = new Date().getHours();
                 let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-                document.getElementById('welcomeMessage').innerText = greeting + ', Handsome.';
+                document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
 
+                // Socket.IO for real-time updates
                 const socket = io();
                 
                 function refreshMessagesUI() {
@@ -491,6 +406,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     });
                 }
                 
+                // Socket events
                 socket.on('chat message', () => { refreshMessagesUI(); refreshStatsUI(); });
                 socket.on('message deleted', () => { refreshMessagesUI(); refreshStatsUI(); });
                 socket.on('messages purged', () => { refreshMessagesUI(); refreshStatsUI(); });
@@ -499,7 +415,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 // Broadcast
                 document.getElementById('sendBroadcastBtn').addEventListener('click', async () => {
                     const text = document.getElementById('broadcastText').value.trim();
-                    if (!text) { await customAlert('Enter a broadcast message', 'Missing Input'); return; }
+                    if (!text) { showToast('Enter a broadcast message', 'error'); return; }
                     const res = await fetch('/admin/broadcast', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -510,7 +426,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         showToast('Broadcast sent', 'success');
                         document.getElementById('broadcastText').value = '';
                     } else {
-                        await customAlert(result.message || 'Failed to send broadcast', 'Error');
+                        showToast(result.message || 'Failed', 'error');
                     }
                 });
                 
@@ -518,9 +434,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 document.getElementById('applyPresetBtn').addEventListener('click', async () => {
                     const userId = document.getElementById('identityUserId').value.trim();
                     const preset = document.getElementById('presetSelect').value;
-                    if (!userId) { await customAlert('Please enter a User ID', 'Missing User ID'); return; }
-                    const confirmed = await customConfirm(\`Change user \${userId} to preset "\${preset}"? This will reload their chat.\`, 'Confirm Identity Change');
-                    if (!confirmed) return;
+                    if (!userId) { showToast('Enter User ID', 'error'); return; }
                     const res = await fetch('/admin/change-identity', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -531,7 +445,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         showToast('Preset identity applied', 'success');
                         refreshUsersUI();
                     } else {
-                        await customAlert(result.error || 'Failed to apply preset', 'Error');
+                        showToast(result.error || 'Failed', 'error');
                     }
                 });
                 
@@ -539,9 +453,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 document.getElementById('applyCustomBtn').addEventListener('click', async () => {
                     const userId = document.getElementById('identityUserId').value.trim();
                     const customName = document.getElementById('customNameInput').value.trim();
-                    if (!userId || !customName) { await customAlert('Please enter both User ID and a custom name', 'Missing Information'); return; }
-                    const confirmed = await customConfirm(\`Change user \${userId} to custom name "\${customName}"? This will reload their chat.\`, 'Confirm Custom Identity');
-                    if (!confirmed) return;
+                    if (!userId || !customName) { showToast('Enter User ID and custom name', 'error'); return; }
                     const res = await fetch('/admin/change-custom-identity', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -552,14 +464,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         showToast('Custom identity applied', 'success');
                         refreshUsersUI();
                     } else {
-                        await customAlert(result.error || 'Failed to apply custom name', 'Error');
+                        showToast(result.error || 'Failed', 'error');
                     }
                 });
                 
                 // Purge messages
                 document.getElementById('purgeMessagesBtn').addEventListener('click', async () => {
-                    const confirmed = await customConfirm('⚠️ Are you sure you want to purge ALL messages? This action cannot be undone!', 'Danger Zone');
-                    if (!confirmed) return;
+                    if (!confirm('⚠️ Are you sure you want to purge ALL messages? This cannot be undone!')) return;
                     const res = await fetch('/admin/purge-messages', { method: 'POST' });
                     const result = await res.json();
                     if (result.success) {
@@ -567,7 +478,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         refreshMessagesUI();
                         refreshStatsUI();
                     } else {
-                        await customAlert(result.message || 'Purge failed', 'Error');
+                        showToast(result.message || 'Purge failed', 'error');
                     }
                 });
                 
@@ -576,17 +487,124 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     const btn = e.target.closest('.delete-msg-btn');
                     if (!btn) return;
                     const id = btn.getAttribute('data-id');
-                    const confirmed = await customConfirm('Delete this message?', 'Confirm Delete');
-                    if (!confirmed) return;
-                    const res = await fetch('/admin/delete-message/' + id, { method: 'POST' });
-                    const result = await res.json();
-                    if (result.success) {
-                        showToast('Message deleted', 'success');
-                        refreshMessagesUI();
-                        refreshStatsUI();
-                    } else {
-                        await customAlert(result.message || 'Delete failed', 'Error');
+                    if (confirm('Delete this message?')) {
+                        const res = await fetch('/admin/delete-message/' + id, { method: 'POST' });
+                        const result = await res.json();
+                        if (result.success) {
+                            showToast('Message deleted', 'success');
+                            refreshMessagesUI();
+                            refreshStatsUI();
+                        } else {
+                            showToast(result.message || 'Delete failed', 'error');
+                        }
                     }
+                });
+                
+                // ----- Room Management Functions -----
+                function showCustomModal(title, message, showInput = false, showPassword = false, placeholder = '') {
+                    return new Promise((resolve) => {
+                        const modal = document.getElementById('customModal');
+                        const modalTitle = document.getElementById('modalTitle');
+                        const modalMessage = document.getElementById('modalMessage');
+                        const modalInputGroup = document.getElementById('modalInputGroup');
+                        const modalPasswordGroup = document.getElementById('modalPasswordGroup');
+                        const modalInput = document.getElementById('modalInput');
+                        const modalPassword = document.getElementById('modalPassword');
+                        
+                        modalTitle.innerText = title;
+                        modalMessage.innerText = message;
+                        modalInputGroup.style.display = showInput ? 'block' : 'none';
+                        modalPasswordGroup.style.display = showPassword ? 'block' : 'none';
+                        modalInput.value = '';
+                        modalPassword.value = '';
+                        if (placeholder) modalInput.placeholder = placeholder;
+                        
+                        modal.style.display = 'flex';
+                        
+                        const confirmHandler = () => {
+                            modal.style.display = 'none';
+                            modalConfirmBtn.removeEventListener('click', confirmHandler);
+                            modalCancelBtn.removeEventListener('click', cancelHandler);
+                            resolve({ confirmed: true, input: modalInput.value, password: modalPassword.value });
+                        };
+                        const cancelHandler = () => {
+                            modal.style.display = 'none';
+                            modalConfirmBtn.removeEventListener('click', confirmHandler);
+                            modalCancelBtn.removeEventListener('click', cancelHandler);
+                            resolve({ confirmed: false });
+                        };
+                        
+                        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+                        const modalCancelBtn = document.getElementById('modalCancelBtn');
+                        modalConfirmBtn.addEventListener('click', confirmHandler);
+                        modalCancelBtn.addEventListener('click', cancelHandler);
+                    });
+                }
+                
+                // Create room
+                document.getElementById('createRoomBtn').addEventListener('click', async () => {
+                    const result = await showCustomModal('Create New Room', 'Enter room name:', true, true, 'Room name (e.g., gaming-lounge)');
+                    if (result.confirmed && result.input) {
+                        const roomName = result.input.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+                        const password = result.password.trim() || null;
+                        const res = await fetch('/admin/api/rooms/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ roomName, password })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            showToast(\`Room "\${roomName}" created successfully\`, 'success');
+                            setTimeout(() => window.location.reload(), 1500);
+                        } else {
+                            showToast(data.error || 'Failed to create room', 'error');
+                        }
+                    }
+                });
+                
+                // Edit room password
+                document.querySelectorAll('.edit-room-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const roomName = btn.getAttribute('data-room');
+                        const result = await showCustomModal(\`Edit Room: \${roomName}\`, 'Set new password (leave empty to remove password):', false, true, 'New password (optional)');
+                        if (result.confirmed) {
+                            const newPassword = result.password.trim() || null;
+                            const res = await fetch('/admin/api/rooms/update-password', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ roomName, password: newPassword })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                showToast('Room password updated', 'success');
+                                setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                                showToast(data.error || 'Failed to update password', 'error');
+                            }
+                        }
+                    });
+                });
+                
+                // Delete room
+                document.querySelectorAll('.delete-room-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const roomName = btn.getAttribute('data-room');
+                        const result = await showCustomModal('Delete Room', \`Are you sure you want to delete room "\${roomName}"? This will remove all messages and cannot be undone.\`);
+                        if (result.confirmed) {
+                            const res = await fetch('/admin/api/rooms/delete', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ roomName })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                showToast(\`Room "\${roomName}" deleted\`, 'success');
+                                setTimeout(() => window.location.reload(), 1500);
+                            } else {
+                                showToast(data.error || 'Failed to delete room', 'error');
+                            }
+                        }
+                    });
                 });
                 
                 // Initial loads
@@ -599,7 +617,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.send(html);
     });
 
-    // --- API endpoints (unchanged but ensure Admin avatar uses external URL) ---
+    // --- API endpoints for real-time UI ---
     app.get('/admin/api/messages', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const recent = messages.slice(-50).reverse();
@@ -619,6 +637,42 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ totalMessages: messages.length, totalUsers: userCount, recentMessages: recentCount });
     });
 
+    // Room management API endpoints
+    app.post('/admin/api/rooms/create', (req, res) => {
+        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+        const { roomName, password } = req.body;
+        if (!roomName || roomName.trim() === '') {
+            return res.status(400).json({ error: 'Room name is required' });
+        }
+        const sanitizedName = roomName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        if (roomsModule.roomExists(sanitizedName)) {
+            return res.status(400).json({ error: 'Room already exists' });
+        }
+        roomsModule.createRoom(sanitizedName, password || null);
+        res.json({ success: true });
+    });
+
+    app.post('/admin/api/rooms/update-password', (req, res) => {
+        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+        const { roomName, password } = req.body;
+        if (!roomsModule.roomExists(roomName)) {
+            return res.status(400).json({ error: 'Room not found' });
+        }
+        roomsModule.updateRoomPassword(roomName, password || null);
+        res.json({ success: true });
+    });
+
+    app.post('/admin/api/rooms/delete', (req, res) => {
+        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+        const { roomName } = req.body;
+        if (!roomsModule.roomExists(roomName)) {
+            return res.status(400).json({ error: 'Room not found' });
+        }
+        roomsModule.deleteRoom(roomName);
+        res.json({ success: true });
+    });
+
+    // POST endpoints for admin actions (return JSON)
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
