@@ -168,30 +168,79 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     </div>
                 </div>
 
-                <!-- NEW: 3x2 Grid Layout -->
-                <!-- Row 1: Broadcast Message & Danger Zone -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <!-- Broadcast Message -->
-                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
-                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">📢・Broadcast Message</h2>
-                        <div class="space-y-3">
-                            <input type="text" id="broadcastText" placeholder="Enter your announcement..." class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <button id="sendBroadcastBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Send Broadcast</button>
-                        </div>
+                <!-- RECENT MESSAGES -->
+                <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card mb-8">
+                    <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
+                        <h2 class="text-lg font-semibold text-white">📩・Recent Messages</h2>
                     </div>
-
-                    <!-- Danger Zone -->
-                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
-                        <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
-                        <div class="space-y-3">
-                            <button id="purgeMessagesBtn" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
-                            <a href="/admin/logout" class="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-medium transition-colors shadow-lg">🚪 Logout</a>
-                        </div>
-                    </div>
+                    <div class="p-4 h-48 overflow-y-auto" id="messagesList">`;
+        if (recentMessages.length === 0) {
+            html += `<div class="text-center py-8 text-gray-400">No messages yet.</div>`;
+        } else {
+            for (const m of recentMessages) {
+                let fileHtml = '';
+                if (m.file) {
+                    if (m.file.type && m.file.type.startsWith('image/')) {
+                        fileHtml = `<div class="mt-2"><img src="${escapeHtml(m.file.url)}" class="max-w-[150px] rounded-lg border border-gray-600" /></div>`;
+                    } else {
+                        fileHtml = `<div class="mt-2"><a href="${escapeHtml(m.file.url)}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-sm">📎 ${escapeHtml(m.file.name)}</a></div>`;
+                    }
+                }
+                html += `
+                            <div class="message-card bg-gray-800/60 rounded-lg p-3 mb-3 border border-gray-700/30" data-message-id="${m.id}">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="font-medium text-indigo-300 text-sm">${escapeHtml(m.senderName)}</span>
+                                    <span class="text-xs text-gray-500">${new Date(m.timestamp).toLocaleString()}</span>
+                                </div>
+                                <div class="text-gray-300 text-sm mb-2">${escapeHtml(m.text || '')}</div>
+                                ${fileHtml}
+                                <button class="delete-msg-btn text-red-400 hover:text-red-300 text-xs transition-colors" data-id="${m.id}">🗑️ Delete</button>
+                            </div>`;
+            }
+        }
+        html += `</div>
                 </div>
 
-                <!-- Row 2: Active Users & Change Identity -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- ROOMS MANAGEMENT CARD -->
+                <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border ${ROOMS_ENABLED ? 'border-gray-700/50' : 'border-gray-600/50 bg-gray-800/20'} p-5 card mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                            🏠・Rooms
+                            ${!ROOMS_ENABLED ? '<span class="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">Inactive</span>' : ''}
+                        </h2>
+                        ${ROOMS_ENABLED ? 
+                            '<button id="createRoomBtn" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm transition-colors shadow">+ New Room</button>' : 
+                            '<button class="bg-gray-600 cursor-not-allowed px-3 py-1 rounded-lg text-sm opacity-50" disabled>+ New Room (Disabled)</button>'
+                        }
+                    </div>
+                    ${ROOMS_ENABLED ? `
+                    <div id="roomsList" class="space-y-2 max-h-64 overflow-y-auto">
+                        ${Object.entries(allRooms).map(([name, room]) => `
+                            <div class="bg-gray-800/60 rounded-lg p-3 flex justify-between items-center border border-gray-700/30" data-room-name="${name}">
+                                <div class="flex-1">
+                                    <div class="font-medium text-white">${escapeHtml(name)}</div>
+                                    <div class="text-xs text-gray-400 mt-1">${room.hasPassword ? '🔒 Password protected' : '🔓 Public'}</div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button class="edit-room-btn bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-sm transition-colors" data-room="${name}" data-password="${room.password || ''}">Edit</button>
+                                    <button class="delete-room-btn bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg text-sm transition-colors" data-room="${name}">Delete</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : `
+                    <div class="text-center py-8 text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto mb-2 opacity-50">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <p>Rooms feature is temporarily disabled.</p>
+                        <p class="text-xs mt-1">Check back later.</p>
+                    </div>
+                    `}
+                </div>
+
+                <!-- ACTIVE USERS & CHANGE IDENTITY (side by side) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                     <!-- Active Users -->
                     <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                         <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
@@ -235,77 +284,22 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     </div>
                 </div>
 
-                <!-- Row 3: Recent Messages & Rooms -->
+                <!-- BROADCAST & DANGER ZONE -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <!-- Recent Messages -->
-                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
-                        <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
-                            <h2 class="text-lg font-semibold text-white">📩・Recent Messages</h2>
+                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
+                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">📢・Broadcast Message</h2>
+                        <div class="space-y-3">
+                            <input type="text" id="broadcastText" placeholder="Enter your announcement..." class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button id="sendBroadcastBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Send Broadcast</button>
                         </div>
-                        <div class="p-4 h-48 overflow-y-auto" id="messagesList">`;
-        if (recentMessages.length === 0) {
-            html += `<div class="text-center py-8 text-gray-400">No messages yet.</div>`;
-        } else {
-            for (const m of recentMessages) {
-                let fileHtml = '';
-                if (m.file) {
-                    if (m.file.type && m.file.type.startsWith('image/')) {
-                        fileHtml = `<div class="mt-2"><img src="${escapeHtml(m.file.url)}" class="max-w-[150px] rounded-lg border border-gray-600" /></div>`;
-                    } else {
-                        fileHtml = `<div class="mt-2"><a href="${escapeHtml(m.file.url)}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-sm">📎 ${escapeHtml(m.file.name)}</a></div>`;
-                    }
-                }
-                html += `
-                            <div class="message-card bg-gray-800/60 rounded-lg p-3 mb-3 border border-gray-700/30" data-message-id="${m.id}">
-                                <div class="flex justify-between items-start mb-1">
-                                    <span class="font-medium text-indigo-300 text-sm">${escapeHtml(m.senderName)}</span>
-                                    <span class="text-xs text-gray-500">${new Date(m.timestamp).toLocaleString()}</span>
-                                </div>
-                                <div class="text-gray-300 text-sm mb-2">${escapeHtml(m.text || '')}</div>
-                                ${fileHtml}
-                                <button class="delete-msg-btn text-red-400 hover:text-red-300 text-xs transition-colors" data-id="${m.id}">🗑️ Delete</button>
-                            </div>`;
-            }
-        }
-        html += `</div>
                     </div>
 
-                    <!-- Rooms -->
-                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border ${ROOMS_ENABLED ? 'border-gray-700/50' : 'border-gray-600/50 bg-gray-800/20'} p-5 card">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                                🏠・Rooms
-                                ${!ROOMS_ENABLED ? '<span class="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">Inactive</span>' : ''}
-                            </h2>
-                            ${ROOMS_ENABLED ? 
-                                '<button id="createRoomBtn" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm transition-colors shadow">+ New Room</button>' : 
-                                '<button class="bg-gray-600 cursor-not-allowed px-3 py-1 rounded-lg text-sm opacity-50" disabled>+ New Room (Disabled)</button>'
-                            }
+                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
+                        <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
+                        <div class="space-y-3">
+                            <button id="purgeMessagesBtn" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
+                            <a href="/admin/logout" class="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-medium transition-colors shadow-lg">🚪 Logout</a>
                         </div>
-                        ${ROOMS_ENABLED ? `
-                        <div id="roomsList" class="space-y-2 max-h-64 overflow-y-auto">
-                            ${Object.entries(allRooms).map(([name, room]) => `
-                                <div class="bg-gray-800/60 rounded-lg p-3 flex justify-between items-center border border-gray-700/30" data-room-name="${name}">
-                                    <div class="flex-1">
-                                        <div class="font-medium text-white">${escapeHtml(name)}</div>
-                                        <div class="text-xs text-gray-400 mt-1">${room.hasPassword ? '🔒 Password protected' : '🔓 Public'}</div>
-                                    </div>
-                                    <div class="flex gap-2">
-                                        <button class="edit-room-btn bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-sm transition-colors" data-room="${name}" data-password="${room.password || ''}">Edit</button>
-                                        <button class="delete-room-btn bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg text-sm transition-colors" data-room="${name}">Delete</button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        ` : `
-                        <div class="text-center py-8 text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto mb-2 opacity-50">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                            </svg>
-                            <p>This feature is temporarily disabled.</p>
-                            <p class="text-xs mt-1">I know I'm being lazy..</p>
-                        </div>
-                        `}
                     </div>
                 </div>
             </div>
@@ -342,10 +336,26 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     }, 3000);
                 }
 
-                // Dynamic welcome
-                const hour = new Date().getHours();
-                let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-                document.getElementById('welcomeMessage').innerText = greeting + ', Handsome.';
+                // Dynamic welcome (handsome + night owl special 01:00 - 04:50)
+                const now = new Date();
+                const hour = now.getHours();
+                const minute = now.getMinutes();
+                let greeting = '';
+
+                if ((hour === 1 || hour === 2 || hour === 3) || (hour === 4 && minute <= 50)) {
+                    greeting = 'What a hard working night owl';
+                } else if (hour < 12) {
+                    greeting = 'Good morning';
+                } else if (hour < 18) {
+                    greeting = 'Good afternoon';
+                } else {
+                    greeting = 'Good evening';
+                }
+
+                const finalMessage = greeting === 'What a hard working night owl' 
+                    ? greeting 
+                    : greeting + ', handsome.';
+                document.getElementById('welcomeMessage').innerText = finalMessage;
 
                 // Socket.IO for real-time updates
                 const socket = io();
@@ -643,7 +653,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.send(html);
     });
 
-    // --- API endpoints for real-time UI ---
+    // --- API endpoints for real-time UI (unchanged) ---
     app.get('/admin/api/messages', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const recent = messages.slice(-50).reverse();
