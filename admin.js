@@ -290,8 +290,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto mb-2 opacity-50">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
-                        <p>Rooms feature is temporarily disabled.</p>
-                        <p class="text-xs mt-1">Check back later.</p>
+                        <p>This feature is temporarily disabled.</p>
+                        <p class="text-xs mt-1">I know I'm being lazy..</p>
                     </div>
                     `}
                 </div>
@@ -341,7 +341,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 // Dynamic welcome
                 const hour = new Date().getHours();
                 let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-                document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
+                document.getElementById('welcomeMessage').innerText = greeting + ', Handsome.';
 
                 // Socket.IO for real-time updates
                 const socket = io();
