@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+
+# Disallow admin panel and API endpoints
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /api/
+Disallow: /upload
+
+# Disallow any potential internal or debug paths
+Disallow: /server.js
+Disallow: /sw.js
+Disallow: /package.json
+Disallow: /package-lock.json
+Disallow: /chat
+Disallow: /takennames.json
+Disallow: /usermappings.json
+
+# Allow core pages (already covered by Allow: / but explicitly fine)
+Allow: /tos
+Allow: /privacy-policy
+Allow: /faq
+Allow: /index.html
+
+# Sitemap location
+Sitemap: https://whisper.arsan.my/sitemap.xml
