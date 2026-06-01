@@ -44,6 +44,10 @@
       display: flex;
       flex-direction: column;
     }
+    /* Apply Montserrat Alternates only to the main Whisper heading */
+    .whisper-title {
+      font-family: 'Montserrat Alternates', 'Inter', system-ui, sans-serif;
+    }
     .glass-card {
       background: rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(10px);
@@ -124,7 +128,7 @@
         </div>
       </div>
       
-      <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent mb-4 sm:mb-6">
+      <h1 class="whisper-title text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent mb-4 sm:mb-6">
         Whisper
       </h1>
       <p class="text-lg sm:text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
