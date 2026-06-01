@@ -246,6 +246,9 @@
     let currentXhr = null;
     let notificationsEnabled = false;
 
+    // ==================== CATCH‑UP NOTIFICATION VARIABLES ====================
+    let lastMessageCount = 0;
+
     // ==================== Emoji picker ====================
     const emojis = ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠'];
     function buildEmojiPicker() {
@@ -342,8 +345,25 @@
     }
 
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) refreshMessages();
+      if (!document.hidden) {
+        // When user comes back to the tab, check for missed messages
+        checkForNewMessagesOnResume();
+      }
     });
+
+    async function checkForNewMessagesOnResume() {
+      try {
+        const res = await fetch('/api/messages/count');
+        const data = await res.json();
+        if (data.count > lastMessageCount) {
+          const newCount = data.count - lastMessageCount;
+          safeNotify('Whisper', `${newCount} new message${newCount > 1 ? 's' : ''} while you were away`);
+          lastMessageCount = data.count;
+        }
+      } catch (err) {
+        console.error('Failed to fetch message count:', err);
+      }
+    }
 
     socket.on('connect', () => {
       if (isReady) refreshMessages();
@@ -353,11 +373,17 @@
       if (!isReady) return;
       messagesContainer.innerHTML = '';
       msgs.forEach(msg => appendMessage(msg));
+      // Update the stored message count
+      lastMessageCount = msgs.length;
     });
 
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
+      // Increment our counter when a new message arrives while the app is active
+      if (!document.hidden && msg.senderName !== currentUserName) {
+        lastMessageCount++;
+      }
       // Always try to show notification, even if page is visible
       if (msg.text) safeNotify(msg.senderName, msg.text);
       else safeNotify(msg.senderName, 'sent a file');
@@ -375,13 +401,13 @@
       if (msgDiv) msgDiv.remove();
     });
 
-    // Handle full message purge
     socket.on('messages purged', () => {
       messagesContainer.innerHTML = '';
       if (isReady) socket.emit('load history');
+      // Reset counter after purge
+      lastMessageCount = 0;
     });
 
-    // Identity change listener
     socket.on('force-reload-identity', (data) => {
       if (data.userId === localStorage.getItem('whisper_user_id')) {
         console.log('🔄 Identity changed by admin, reloading chat...');
@@ -469,7 +495,7 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    // ==================== Notifications (now always shown) ====================
+    // ==================== Notifications (always shown) ====================
     function requestNotificationPermissionSafe() {
       try {
         if (typeof Notification === 'undefined') return;
@@ -488,7 +514,6 @@
         if (typeof Notification === 'undefined') return;
         if (!notificationsEnabled) return;
         if (senderName === currentUserName) return;
-        // SHOW NOTIFICATION REGARDLESS OF PAGE VISIBILITY
         new Notification(`💬 ${senderName}`, {
           body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
           icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
@@ -499,6 +524,12 @@
 
     // Request permission as soon as the page loads
     requestNotificationPermissionSafe();
+
+    // ==================== Initial fetch of message count ====================
+    fetch('/api/messages/count')
+      .then(res => res.json())
+      .then(data => { lastMessageCount = data.count; })
+      .catch(console.error);
 
   </script>
   <script>
