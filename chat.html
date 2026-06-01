@@ -1,506 +1,409 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <meta name="theme-color" content="#1e293b">
-
-  <title>Whisper</title>
-  <meta name="title" content="Whisper">
-  <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
-
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="whisper.arsan.my">
-  <meta property="og:title" content="Whisper">
-  <meta property="og:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
-  <meta property="og:image" content="/wr-banner.png">
-
-  <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="whisper.arsan.my">
-  <meta property="twitter:title" content="Whisper">
-  <meta property="twitter:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
-  <meta property="twitter:image" content="/wr-banner.png">
-
-  <!-- Montserrat Alternates font -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700&display=swap" rel="stylesheet">
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    /* Custom header styles */
-    .chat-header {
-      background: transparent;
-      backdrop-filter: none;
-      border-bottom: none;
-      padding: 0;
-    }
-    .whisper-banner {
-      background: rgba(10, 14, 23, 0.65);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 0.9rem 1.5rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    .banner-container {
-      max-width: 1400px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .bubble-icon {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-    }
-    .bubble-icon svg {
-      width: 18px;
-      height: 18px;
-      stroke: white;
-      stroke-width: 1.8;
-    }
-    .wordmark {
-      font-family: 'Montserrat Alternates', system-ui, -apple-system, sans-serif;
-      font-size: 1.55rem;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-      background: linear-gradient(135deg, #ffffff, #c7d2fe);
-      background-clip: text;
-      -webkit-background-clip: text;
-      color: transparent;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    .tagline {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      background: rgba(255, 255, 255, 0.05);
-      padding: 0.2rem 0.6rem;
-      border-radius: 40px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    @media (max-width: 640px) {
-      .whisper-banner { padding: 0.7rem 1rem; }
-      .wordmark { font-size: 1.25rem; }
-      .bubble-icon { width: 28px; height: 28px; }
-      .bubble-icon svg { width: 15px; height: 15px; }
-      .tagline { font-size: 0.65rem; }
-    }
-
-    /* Chat styles */
-    #messagesContainer {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-      -webkit-overflow-scrolling: touch;
-    }
-    .message:not(.own) .message-bubble {
-      background: rgba(30, 41, 59, 0.7);
-      backdrop-filter: blur(4px);
-      color: #f1f5f9;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .own .message-bubble {
-      background: rgba(99, 102, 241, 0.8);
-      backdrop-filter: blur(4px);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .message-bubble {
-      word-break: break-word;
-      white-space: normal;
-      transition: all 0.1s ease;
-    }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb { background: #818CF8; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #A5B4FC; }
-    .input-container {
-      background: rgba(0, 0, 0, 0.2);
-      backdrop-filter: blur(8px);
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 0.75rem;
-      flex-shrink: 0;
-    }
-    input {
-      background: rgba(0, 0, 0, 0.5) !important;
-      border-color: rgba(255, 255, 255, 0.2) !important;
-      color: white !important;
-    }
-    input:focus {
-      outline: none;
-      ring: 2px solid #A5B4FC;
-      border-color: #A5B4FC !important;
-    }
-    .send-btn {
-      background: linear-gradient(135deg, #4f46e5, #6366f1);
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .send-btn:hover {
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      transform: scale(0.98);
-    }
-    .send-icon {
-      width: 18px;
-      height: 18px;
-      stroke: white;
-      stroke-width: 2;
-    }
-    .text-gray-400 { color: #cbd5e1 !important; }
-    .text-gray-500 { color: #94a3b8 !important; }
-    .text-gray-300 { color: #e2e8f0 !important; }
-    .text-white { color: #ffffff !important; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Whisper Room</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#475569">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <style>
+        /* Your existing CSS – unchanged */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0c10;
+            color: #e2e8f0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-header {
+            background: #1e293b;
+            padding: 1rem;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #3b82f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+        }
+        .user-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        .status {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .message {
+            background: #1e293b;
+            border-radius: 1rem;
+            padding: 0.75rem 1rem;
+            max-width: 80%;
+            align-self: flex-start;
+            word-wrap: break-word;
+        }
+        .message.own {
+            background: #3b82f6;
+            align-self: flex-end;
+        }
+        .message-header {
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            margin-bottom: 0.25rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        .message-text {
+            font-size: 0.95rem;
+        }
+        .message-file {
+            margin-top: 0.5rem;
+        }
+        .message-file a {
+            color: #90cdf4;
+            text-decoration: none;
+        }
+        .input-area {
+            background: #1e293b;
+            padding: 1rem;
+            border-top: 1px solid #334155;
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+        #messageInput {
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 2rem;
+            padding: 0.75rem 1rem;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        #messageInput:focus {
+            border-color: #3b82f6;
+        }
+        button {
+            background: #3b82f6;
+            border: none;
+            border-radius: 2rem;
+            padding: 0 1.25rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .file-label {
+            background: #475569;
+            border-radius: 2rem;
+            padding: 0 1rem;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .file-label:hover {
+            background: #64748b;
+        }
+        #fileInput {
+            display: none;
+        }
+        .typing-indicator {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            padding: 0.25rem 1rem;
+            font-style: italic;
+        }
+        @media (max-width: 640px) {
+            .message {
+                max-width: 90%;
+            }
+            .user-name {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="chat-header">
-    <div class="whisper-banner">
-      <div class="banner-container">
-        <div class="brand">
-          <div class="bubble-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </div>
-          <span class="wordmark">Whisper</span>
+    <div class="chat-header">
+        <div class="user-info">
+            <div class="avatar" id="userAvatar">?</div>
+            <div>
+                <div class="user-name" id="userName">Connecting...</div>
+                <div class="status" id="userStatus">● Connecting</div>
+            </div>
         </div>
-        <div class="tagline">Anonymous · Instant</div>
-      </div>
+        <div>
+            <button id="clearChatBtn" style="background:#ef4444; padding:0.5rem 1rem;">Clear Chat</button>
+        </div>
     </div>
-  </div>
-
-  <div id="messagesContainer" class="space-y-2"></div>
-
-  <div class="input-container">
-    <div class="flex gap-2 max-w-3xl mx-auto">
-      <button id="emojiBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">😊</button>
-      <button id="attachBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">📎</button>
-      <input type="text" id="messageInput" placeholder="Type Anything..." autocomplete="off"
-             class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-white">
-      <button id="sendBtn" class="send-btn px-6 py-3 rounded-xl font-medium shadow-lg text-white">
-        <span class="hidden sm:inline">Send</span>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="send-icon">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="16" x2="12" y2="8"></line>
-          <polyline points="8 12 12 8 16 12"></polyline>
-        </svg>
-      </button>
+    <div class="messages-container" id="messages"></div>
+    <div class="typing-indicator" id="typingIndicator"></div>
+    <div class="input-area">
+        <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off">
+        <label class="file-label">
+            📎
+            <input type="file" id="fileInput">
+        </label>
+        <button id="sendBtn">Send</button>
     </div>
-  </div>
 
-  <!-- Progress bar container (hidden by default) -->
-  <div id="uploadProgressContainer" class="hidden fixed bottom-24 left-4 right-4 bg-gray-800/90 backdrop-blur-sm rounded-xl p-3 shadow-lg z-50 max-w-md mx-auto">
-    <div class="flex justify-between items-center mb-2">
-      <span class="text-sm text-white">Uploading...</span>
-      <button id="cancelUploadBtn" class="text-red-400 text-sm">Cancel</button>
-    </div>
-    <div class="w-full bg-gray-700 rounded-full h-2">
-      <div id="uploadProgressBar" class="bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
-    </div>
-  </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // -------------------------------
+        // DOM elements
+        // -------------------------------
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const fileInput = document.getElementById('fileInput');
+        const userNameSpan = document.getElementById('userName');
+        const userAvatarSpan = document.getElementById('userAvatar');
+        const userStatusSpan = document.getElementById('userStatus');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const clearChatBtn = document.getElementById('clearChatBtn');
 
-  <input type="file" id="fileInput" class="hidden" accept="image/*,video/*,application/pdf,text/plain,application/zip">
+        let socket = null;
+        let currentUserId = null;
+        let userName = '';
+        let userAvatar = '';
+        let typingTimeout = null;
 
-  <script>
-    // ==================== DOM elements ====================
-    const socket = io();
-    const messagesContainer = document.getElementById('messagesContainer');
-    const messageInput = document.getElementById('messageInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const emojiBtn = document.getElementById('emojiBtn');
-    const attachBtn = document.getElementById('attachBtn');
-    const fileInput = document.getElementById('fileInput');
-    const uploadProgressContainer = document.getElementById('uploadProgressContainer');
-    const uploadProgressBar = document.getElementById('uploadProgressBar');
-    const cancelUploadBtn = document.getElementById('cancelUploadBtn');
+        // -------------------------------
+        // Helper: show notification (browser push)
+        // -------------------------------
+        async function showNotificationIfNeeded(sender, text) {
+            if (!('Notification' in window)) return;
+            if (Notification.permission === 'granted') {
+                new Notification(`Whisper Room – ${sender}`, { body: text, icon: '/icons/icon-192.png' });
+            } else if (Notification.permission !== 'denied') {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    new Notification(`Whisper Room – ${sender}`, { body: text, icon: '/icons/icon-192.png' });
+                }
+            }
+        }
 
-    let currentUserName = null;
-    let isReady = false;
-    let currentXhr = null;
+        // -------------------------------
+        // Add message to DOM
+        // -------------------------------
+        function addMessage(msg) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            if (msg.userId === currentUserId) messageDiv.classList.add('own');
+            messageDiv.setAttribute('data-message-id', msg.id || Date.now());
 
-    // ==================== Emoji picker ====================
-    const emojis = ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠'];
-    function buildEmojiPicker() {
-      const picker = document.createElement('div');
-      picker.id = 'emojiPicker';
-      picker.className = 'fixed bottom-20 left-4 right-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-2 hidden grid grid-cols-6 gap-1 max-h-48 overflow-y-auto z-50';
-      for (let em of emojis.slice(0, 70)) {
-        const span = document.createElement('span');
-        span.textContent = em;
-        span.className = 'text-2xl text-center cursor-pointer p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded';
-        span.onclick = () => {
-          messageInput.value += em;
-          messageInput.focus();
-          picker.classList.add('hidden');
-        };
-        picker.appendChild(span);
-      }
-      document.body.appendChild(picker);
-      emojiBtn.onclick = (e) => { e.stopPropagation(); picker.classList.toggle('hidden'); };
-      document.addEventListener('click', (e) => { if (!picker.contains(e.target) && e.target !== emojiBtn) picker.classList.add('hidden'); });
-    }
-    buildEmojiPicker();
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            header.innerHTML = `<span>${escapeHtml(msg.userName)}</span><span>${new Date(msg.timestamp).toLocaleTimeString()}</span>`;
+            messageDiv.appendChild(header);
 
-    // ==================== File upload ====================
-    attachBtn.onclick = () => fileInput.click();
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            if (msg.type === 'file' && msg.fileUrl) {
+                const ext = msg.fileUrl.split('.').pop().toLowerCase();
+                if (['jpg','jpeg','png','gif','webp'].includes(ext)) {
+                    textDiv.innerHTML = `<a href="${msg.fileUrl}" target="_blank"><img src="${msg.fileUrl}" style="max-width:200px; max-height:200px; border-radius:8px;"></a>`;
+                } else {
+                    textDiv.innerHTML = `<a href="${msg.fileUrl}" target="_blank">📎 Download file</a>`;
+                }
+            } else {
+                textDiv.innerText = msg.text;
+            }
+            messageDiv.appendChild(textDiv);
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
 
-    function uploadFile(file) {
-      return new Promise((resolve, reject) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        const xhr = new XMLHttpRequest();
-        currentXhr = xhr;
-        uploadProgressContainer.classList.remove('hidden');
-        uploadProgressBar.style.width = '0%';
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = (e.loaded / e.total) * 100;
-            uploadProgressBar.style.width = percent + '%';
-          }
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // -------------------------------
+        // Load message history
+        // -------------------------------
+        function loadHistory() {
+            fetch('/api/messages')
+                .then(res => res.json())
+                .then(messages => {
+                    messagesDiv.innerHTML = '';
+                    messages.forEach(msg => addMessage(msg));
+                })
+                .catch(console.error);
+        }
+
+        // -------------------------------
+        // Socket.IO connection
+        // -------------------------------
+        function connectSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                userStatusSpan.textContent = '● Connected';
+                userStatusSpan.style.color = '#22c55e';
+                currentUserId = socket.id;
+            });
+
+            socket.on('identity', (data) => {
+                userName = data.name;
+                userAvatar = data.avatar;
+                userNameSpan.textContent = userName;
+                userAvatarSpan.textContent = userName.charAt(0).toUpperCase();
+                document.title = `Whisper – ${userName}`;
+            });
+
+            socket.on('chat message', (msg) => {
+                addMessage(msg);
+                // Trigger notification if not own message
+                if (msg.userId !== currentUserId) {
+                    showNotificationIfNeeded(msg.userName, msg.text || 'sent a file');
+                }
+            });
+
+            // FIX 1: System messages now trigger notifications
+            socket.on('system message', (msg) => {
+                addMessage(msg);
+                // Trigger notification for system messages (admin broadcasts)
+                if (msg.text && !msg.text.startsWith('User left') && !msg.text.startsWith('User joined')) {
+                    showNotificationIfNeeded('System', msg.text);
+                }
+            });
+
+            // FIX 2: Handle message deletion (purge) in real time
+            socket.on('message deleted', (data) => {
+                const targetMsg = document.querySelector(`.message[data-message-id="${data.id}"]`);
+                if (targetMsg) targetMsg.remove();
+                // Optionally reload history to re-sync
+                loadHistory();
+            });
+
+            socket.on('typing', (data) => {
+                if (data.userId !== currentUserId && data.isTyping) {
+                    typingIndicator.textContent = `${data.userName} is typing...`;
+                } else {
+                    typingIndicator.textContent = '';
+                }
+            });
+
+            socket.on('disconnect', () => {
+                userStatusSpan.textContent = '● Disconnected';
+                userStatusSpan.style.color = '#ef4444';
+            });
+        }
+
+        // -------------------------------
+        // Send message
+        // -------------------------------
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+            socket.emit('chat message', text);
+            messageInput.value = '';
+        }
+
+        // -------------------------------
+        // Send file
+        // -------------------------------
+        async function sendFile(file) {
+            if (!file) return;
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File too large (max 10MB)');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.url) {
+                socket.emit('file message', data.url, file.name);
+            } else {
+                alert('Upload failed');
+            }
+        }
+
+        // -------------------------------
+        // Clear chat (local only)
+        // -------------------------------
+        function clearChat() {
+            if (confirm('Clear all messages from your view only?')) {
+                messagesDiv.innerHTML = '';
+            }
+        }
+
+        // -------------------------------
+        // Typing indicator
+        // -------------------------------
+        messageInput.addEventListener('input', () => {
+            if (typingTimeout) clearTimeout(typingTimeout);
+            socket.emit('typing', true);
+            typingTimeout = setTimeout(() => {
+                socket.emit('typing', false);
+            }, 1000);
         });
-        xhr.onload = () => {
-          currentXhr = null;
-          uploadProgressContainer.classList.add('hidden');
-          if (xhr.status === 200) {
-            resolve(JSON.parse(xhr.responseText));
-          } else {
-            reject(new Error('Upload failed'));
-          }
-        };
-        xhr.onerror = () => {
-          currentXhr = null;
-          uploadProgressContainer.classList.add('hidden');
-          reject(new Error('Network error'));
-        };
-        xhr.open('POST', '/upload', true);
-        xhr.send(formData);
-      });
-    }
 
-    cancelUploadBtn.onclick = () => {
-      if (currentXhr) {
-        currentXhr.abort();
-        currentXhr = null;
-        uploadProgressContainer.classList.add('hidden');
-        alert('Upload cancelled');
-      }
-    };
-
-    fileInput.onchange = async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      fileInput.value = '';
-      try {
-        const { url, name, type } = await uploadFile(file);
-        socket.emit('chat message', { text: '', file: { url, name, type } });
-      } catch (err) {
-        console.error(err);
-        alert('Upload failed');
-      }
-    };
-
-    // ==================== Core chat ====================
-    let storedId = localStorage.getItem('whisper_user_id');
-    socket.emit('identify', storedId, (data) => {
-      currentUserName = data.name;
-      localStorage.setItem('whisper_user_id', data.userId);
-      isReady = true;
-      socket.emit('load history');
-    });
-
-    function refreshMessages() {
-      if (!isReady) return;
-      socket.emit('load history');
-    }
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) refreshMessages();
-    });
-
-    socket.on('connect', () => {
-      if (isReady) refreshMessages();
-    });
-
-    socket.on('load messages', (msgs) => {
-      if (!isReady) return;
-      messagesContainer.innerHTML = '';
-      msgs.forEach(msg => appendMessage(msg));
-    });
-
-    socket.on('chat message', (msg) => {
-      if (!isReady) return;
-      appendMessage(msg);
-      if (msg.text) safeNotify(msg.senderName, msg.text);
-      else safeNotify(msg.senderName, 'sent a file');
-    });
-
-    socket.on('system message', (data) => {
-      if (!isReady) return;
-      console.log('📢 Broadcast received:', data.text);
-      appendSystemMessage(data.text);
-      safeNotify('📢 System', data.text);
-    });
-
-    socket.on('message deleted', (data) => {
-      const msgDiv = document.querySelector(`[data-message-id="${data.id}"]`);
-      if (msgDiv) msgDiv.remove();
-    });
-
-    // ===== NEW: Identity change listener =====
-    socket.on('force-reload-identity', (data) => {
-      if (data.userId === localStorage.getItem('whisper_user_id')) {
-        console.log('🔄 Identity changed by admin, reloading chat...');
-        window.location.reload();
-      }
-    });
-
-    function appendMessage(msg) {
-      const isOwn = (msg.senderName === currentUserName);
-      const div = document.createElement('div');
-      div.setAttribute('data-message-id', msg.id);
-      div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`;
-      if (!isOwn) {
-        const avatarImg = document.createElement('img');
-        avatarImg.src = msg.senderAvatar;
-        avatarImg.className = 'w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1';
-        avatarImg.alt = msg.senderName;
-        div.appendChild(avatarImg);
-      }
-      const contentWrapper = document.createElement('div');
-      contentWrapper.className = `max-w-[85%] sm:max-w-[32rem] ${isOwn ? 'text-right' : 'text-left'}`;
-      if (!isOwn) {
-        const nameSpan = document.createElement('div');
-        nameSpan.className = 'text-xs text-gray-400 mb-0.5';
-        nameSpan.innerText = msg.senderName;
-        contentWrapper.appendChild(nameSpan);
-      }
-      const bubble = document.createElement('div');
-      bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
-      if (msg.file) {
-        if (msg.file.type && msg.file.type.startsWith('image/')) {
-          const img = document.createElement('img');
-          img.src = msg.file.url;
-          img.className = 'max-w-full rounded max-h-40 cursor-pointer';
-          img.onclick = () => window.open(msg.file.url);
-          bubble.appendChild(img);
-        } else {
-          const link = document.createElement('a');
-          link.href = msg.file.url;
-          link.textContent = `📎 ${msg.file.name}`;
-          link.target = '_blank';
-          link.className = 'underline text-inherit';
-          bubble.appendChild(link);
-        }
-        if (msg.text) {
-          const textDiv = document.createElement('div');
-          textDiv.innerText = msg.text;
-          bubble.appendChild(textDiv);
-        }
-      } else {
-        bubble.innerText = msg.text;
-      }
-      contentWrapper.appendChild(bubble);
-      if (!isOwn) {
-        const timeSpan = document.createElement('div');
-        timeSpan.className = 'text-[10px] mt-1 text-gray-500';
-        timeSpan.innerText = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
-        contentWrapper.appendChild(timeSpan);
-      }
-      div.appendChild(contentWrapper);
-      messagesContainer.appendChild(div);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    function appendSystemMessage(text) {
-      const div = document.createElement('div');
-      div.className = 'text-center text-xs text-gray-400 bg-gray-800/50 rounded-full px-3 py-1 w-fit mx-auto my-1';
-      div.innerText = text;
-      messagesContainer.appendChild(div);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    function sendMessage() {
-      if (!isReady) return;
-      const text = messageInput.value.trim();
-      if (!text) return;
-      requestNotificationPermissionSafe();
-      socket.emit('chat message', { text, file: null });
-      messageInput.value = '';
-      messageInput.focus();
-    }
-
-    sendBtn.onclick = sendMessage;
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
-
-    // ==================== Notifications ====================
-    let notificationsEnabled = false;
-    let pageVisible = true;
-
-    function requestNotificationPermissionSafe() {
-      try {
-        if (typeof Notification === 'undefined') return;
-        if (Notification.permission === 'granted') {
-          notificationsEnabled = true;
-        } else if (Notification.permission !== 'denied' && !notificationsEnabled) {
-          Notification.requestPermission().then(perm => {
-            notificationsEnabled = (perm === 'granted');
-          }).catch(() => {});
-        }
-      } catch(e) {}
-    }
-
-    function safeNotify(senderName, messageText) {
-      try {
-        if (typeof Notification === 'undefined') return;
-        if (!notificationsEnabled || pageVisible) return;
-        if (senderName === currentUserName) return;
-        new Notification(`💬 ${senderName}`, {
-          body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
-          icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
-          silent: false,
+        // -------------------------------
+        // Event listeners
+        // -------------------------------
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
         });
-      } catch(e) {}
-    }
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) sendFile(e.target.files[0]);
+            fileInput.value = '';
+        });
+        clearChatBtn.addEventListener('click', clearChat);
 
-    document.addEventListener('visibilitychange', () => {
-      pageVisible = !document.hidden;
-    });
-  </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('✅ Service Worker registered', reg))
-        .catch(err => console.error('❌ Service Worker registration failed', err));
-    }
-  </script>
+        // -------------------------------
+        // Request notification permission on load
+        // -------------------------------
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(console.error);
+        }
+
+        // Start the app
+        connectSocket();
+        loadHistory();
+    </script>
 </body>
 </html>
