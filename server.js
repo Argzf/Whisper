@@ -149,13 +149,16 @@ function getClientIP(socket) {
     return socket.handshake.address;
 }
 
-// Discord send for chat messages (embed with absolute URLs)
-async function sendToDiscord(name, avatar, text, ip, file = null, roomName = null) {
+// ==================== DISCORD WEBHOOKS ====================
+
+async function sendToDiscord(name, avatar, text, ip, file = null, roomName = null, roomLink = null) {
     if (!WEBHOOK_URL) return;
     const embed = {
-        author: { name, icon_url: avatar },
+        author: { name: name, icon_url: avatar },
         timestamp: new Date().toISOString(),
-        color: 0x5865F2
+        color: 0x5865F2, // Discord blurple
+        description: '',
+        footer: { text: `IP: ${ip}` }
     };
     let description = text || '';
     if (file) {
@@ -168,8 +171,11 @@ async function sendToDiscord(name, avatar, text, ip, file = null, roomName = nul
     }
     if (!description.trim()) description = '*sent a file*';
     embed.description = description;
-    if (roomName) embed.footer = { text: `Room: ${roomName}` };
-
+    
+    if (roomName && roomLink) {
+        embed.fields = [{ name: '📍 Room', value: `[${roomName}](${roomLink})`, inline: true }];
+    }
+    
     try {
         const response = await fetch(WEBHOOK_URL, {
             method: 'POST',
@@ -181,8 +187,30 @@ async function sendToDiscord(name, avatar, text, ip, file = null, roomName = nul
     } catch (err) { console.error('Discord webhook failed:', err.message); }
 }
 
-// Single join log (for main chat and rooms)
-async function sendJoinLog(name, avatar, userId, ip, roomName = null) {
+async function sendRoomCreationLog(roomName, password, roomLink) {
+    if (!LOG_WEBHOOK_URL) return;
+    const embed = {
+        title: '🏠 New Room Created',
+        color: 0x22c55e,
+        fields: [
+            { name: 'Room Name', value: roomName, inline: true },
+            { name: 'Password', value: password ? `\`${password}\`` : 'None (public)', inline: true },
+            { name: 'Room Link', value: `[Click to join](${roomLink})`, inline: false }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Whisper Room Admin' }
+    };
+    try {
+        await fetch(LOG_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ embeds: [embed] })
+        });
+        console.log(`📢 Room creation log sent for ${roomName}`);
+    } catch (err) { console.error('Room creation log failed', err); }
+}
+
+async function sendJoinLog(name, avatar, userId, ip, roomName = null, roomLink = null) {
     if (!LOG_WEBHOOK_URL) return;
     const embed = {
         title: roomName ? `🚪 User joined room: ${roomName}` : '🚪 User joined the chat',
@@ -191,12 +219,15 @@ async function sendJoinLog(name, avatar, userId, ip, roomName = null) {
         fields: [
             { name: 'Username', value: name, inline: true },
             { name: 'User ID', value: `\`${userId}\``, inline: false },
-            { name: 'IP Address', value: `[${ip}](https://whatismyipaddress.com/ip/${ip})`, inline: false },
+            { name: 'IP Address', value: ip, inline: false },
             { name: 'Avatar URL', value: `[link](${avatar})`, inline: true }
         ],
         timestamp: new Date().toISOString(),
         footer: { text: roomName ? `Room: ${roomName}` : 'Whisper Room' }
     };
+    if (roomName && roomLink) {
+        embed.fields.push({ name: 'Room Link', value: `[Click to join](${roomLink})`, inline: false });
+    }
     try {
         await fetch(LOG_WEBHOOK_URL, {
             method: 'POST',
@@ -206,6 +237,8 @@ async function sendJoinLog(name, avatar, userId, ip, roomName = null) {
         console.log(`📢 Join log sent for ${name}${roomName ? ` in ${roomName}` : ''}`);
     } catch (err) { console.error('Join log failed', err); }
 }
+
+// ==================== SOCKET.IO ====================
 
 let messages = []; // main chat
 let userSocketMap = new Map();
@@ -230,7 +263,7 @@ io.on('connection', (socket) => {
         socket.userIdentity = { name, avatar, userId };
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
-        // Do NOT log join here – we'll log when they join a specific room or main chat
+        // No join log here – will be sent when user joins main chat or a room
     });
 
     // Main chat (original)
@@ -256,7 +289,7 @@ io.on('connection', (socket) => {
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
-    // ---- Room system ----
+    // ========== ROOM SYSTEM ==========
     socket.on('join room', async (roomName, password, callback) => {
         if (!socket.userIdentity) {
             callback({ success: false, error: 'Not identified' });
@@ -280,12 +313,13 @@ io.on('connection', (socket) => {
         socket.currentRoom = roomName;
         const roomMessages = roomsModule.getRoomMessages(roomName);
         callback({ success: true, messages: roomMessages });
+        
         const name = socket.userIdentity.name;
         const avatar = socket.userIdentity.avatar;
         const userId = socket.userIdentity.userId;
         const ip = getClientIP(socket);
-        // Send single join log (with room name)
-        await sendJoinLog(name, avatar, userId, ip, roomName);
+        const roomLink = `${req.protocol}://${req.get('host')}/room/${roomName}`;
+        await sendJoinLog(name, avatar, userId, ip, roomName, roomLink);
     });
 
     socket.on('room chat message', async (data) => {
@@ -302,7 +336,8 @@ io.on('connection', (socket) => {
         };
         roomsModule.addRoomMessage(socket.currentRoom, msg);
         io.to(socket.currentRoom).emit('room chat message', msg);
-        await sendToDiscord(name, avatar, msg.text, clientIP, msg.file, socket.currentRoom);
+        const roomLink = `${req.protocol}://${req.get('host')}/room/${socket.currentRoom}`;
+        await sendToDiscord(name, avatar, msg.text, clientIP, msg.file, socket.currentRoom, roomLink);
     });
 
     socket.on('load room history', () => {
@@ -326,64 +361,48 @@ io.on('connection', (socket) => {
     });
 });
 
-// Routes
+// ==================== HTTP ROUTES ====================
+
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/chat', (req, res) => { res.sendFile(path.join(__dirname, 'chat.html')); });
 
-// Dynamic room route – uses the same UI as chat.html
+// Dynamic room route – serves modified chat.html with room overrides
 app.get('/room/:roomName', (req, res) => {
     const roomName = req.params.roomName;
     if (!roomsModule.roomExists(roomName)) {
         return res.status(404).sendFile(path.join(__dirname, '404.html'));
     }
     const room = roomsModule.getRoom(roomName);
-
-    // Read the existing chat.html file and inject room-specific script
     const chatHtmlPath = path.join(__dirname, 'chat.html');
     let chatHtml = fs.readFileSync(chatHtmlPath, 'utf8');
 
-    // Replace the title and add a room banner indicator
+    // Update title and add room indicator
     chatHtml = chatHtml.replace('<title>Whisper</title>', `<title>Whisper · ${escapeHtml(roomName)}</title>`);
-    
-    // Inject room name into the banner (optional – keep original design but add room name)
-    // We'll add a small indicator in the header
-    const roomIndicator = `<div class="tagline ml-2" style="background:rgba(99,102,241,0.2);">🔒 ${room.hasPassword ? 'Private' : 'Public'} room</div>`;
-    // Insert after the existing tagline
+    const roomIndicator = `<div class="tagline ml-2" style="background:rgba(99,102,241,0.2);">${room.hasPassword ? '🔒 Private' : '🔓 Public'}</div>`;
     chatHtml = chatHtml.replace('<div class="tagline">Anonymous · Instant</div>', `<div class="tagline">Anonymous · Instant</div>${roomIndicator}`);
 
-    // Inject room initialization script at the end of the body, before the closing </body>
+    // Inject room initialization script (with fixed modal)
     const roomScript = `
     <script>
-        // Override socket handlers for room mode
         (function() {
             const roomName = ${JSON.stringify(roomName)};
             const hasPassword = ${room.hasPassword};
-            let originalEmit = socket.emit;
             let isRoomReady = false;
             
-            // Store original handlers to replace later
-            let originalLoadHistory = null;
-            let originalChatMessage = null;
-            
             function setupRoomMode() {
-                // Remove existing listeners for main chat events
+                // Remove main chat listeners
                 socket.off('chat message');
                 socket.off('load messages');
                 socket.off('load history');
                 
-                // Add room-specific listeners
+                // Add room listeners
                 socket.on('room chat message', (msg) => {
-                    // Use the same appendMessage function (already defined in chat.html)
-                    if (typeof appendMessage === 'function') {
-                        appendMessage(msg);
-                    } else if (typeof addMessage === 'function') {
-                        addMessage(msg);
-                    }
+                    if (typeof appendMessage === 'function') appendMessage(msg);
+                    else if (typeof addMessage === 'function') addMessage(msg);
                     if (msg.senderName !== currentUserName && typeof safeNotify === 'function') {
                         safeNotify(msg.senderName, msg.text || 'sent a file');
                     }
                 });
-                
                 socket.on('load room messages', (msgs) => {
                     if (typeof messagesContainer !== 'undefined') messagesContainer.innerHTML = '';
                     msgs.forEach(msg => {
@@ -391,79 +410,39 @@ app.get('/room/:roomName', (req, res) => {
                         else if (typeof addMessage === 'function') addMessage(msg);
                     });
                 });
-                
                 socket.on('room typing', (data) => {
                     const typingIndicator = document.getElementById('typingIndicator');
                     if (typingIndicator) {
                         if (data.userId !== socket.id && data.isTyping) {
-                            typingIndicator.innerText = \`\${data.userName} is typing...\`;
+                            typingIndicator.innerText = data.userName + ' is typing...';
                         } else {
                             typingIndicator.innerText = '';
                         }
                     }
                 });
                 
-                // Override sendMessage to use room chat message
-                const originalSendMessage = window.sendMessage;
+                // Override send functions
+                const originalSend = window.sendMessage;
                 window.sendMessage = function() {
                     const text = document.getElementById('messageInput').value.trim();
                     if (!text) return;
                     socket.emit('room chat message', { text, file: null });
                     document.getElementById('messageInput').value = '';
                 };
-                
-                // Override file upload message
-                const originalFileHandler = window.handleFileUpload;
                 window.handleFileUpload = async function(file) {
-                    // Use existing upload function if defined
                     if (typeof uploadFile === 'function') {
                         const { url, name, type } = await uploadFile(file);
                         socket.emit('room chat message', { text: '', file: { url, name, type } });
-                    } else {
-                        console.error('uploadFile not defined');
                     }
                 };
                 
-                // Load room history
                 socket.emit('load room history');
             }
             
-            // Wait for identity and then join room
-            function joinRoomAfterIdentity(password) {
-                // The 'identify' callback already sets currentUserName, etc.
-                // We'll hook into the existing identify flow
-                const originalIdentifyCallback = window.identifyCallback;
-                window.identifyCallback = function(data) {
-                    if (originalIdentifyCallback) originalIdentifyCallback(data);
-                    // After identity is set, join the room
-                    socket.emit('join room', roomName, password, (response) => {
-                        if (response.success) {
-                            isRoomReady = true;
-                            setupRoomMode();
-                            // Remove password modal if present
-                            const modal = document.getElementById('roomPasswordModal');
-                            if (modal) modal.remove();
-                            // Request notification permission after successful join
-                            if (typeof requestNotificationPermissionSafe === 'function') {
-                                requestNotificationPermissionSafe();
-                            }
-                        } else {
-                            alert(response.error);
-                            if (hasPassword) {
-                                // Show password modal again
-                                showRoomPasswordModal();
-                            } else {
-                                console.error('Failed to join room');
-                            }
-                        }
-                    });
-                };
-            }
-            
-            function showRoomPasswordModal() {
+            function showPasswordModal() {
                 const modalHtml = \`
-                    <div id="roomPasswordModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;">
-                        <div style="background:#1e293b;border-radius:1rem;padding:2rem;max-width:400px;width:90%;text-align:center;">
+                    <div id="roomPasswordModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10000;">
+                        <div style="background:#1e293b;border-radius:1rem;padding:2rem;max-width:400px;width:90%;text-align:center;border:1px solid #475569;">
                             <h3 style="color:white;margin-bottom:1rem;">🔐 Room Password Required</h3>
                             <p style="color:#94a3b8;margin-bottom:1.5rem;">This room is password protected.</p>
                             <input type="password" id="roomPasswordInput" placeholder="Enter password" style="width:100%;padding:0.75rem;margin-bottom:1rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
@@ -472,106 +451,53 @@ app.get('/room/:roomName', (req, res) => {
                     </div>
                 \`;
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
-                document.getElementById('roomPasswordSubmit').addEventListener('click', () => {
-                    const pwd = document.getElementById('roomPasswordInput').value;
-                    joinRoomAfterIdentity(pwd);
-                });
-            }
-            
-            // Override the identify event to inject our join logic
-            // The original socket.on('identity') already exists; we need to run after it.
-            // We'll wait for the existing identity handler to finish.
-            // Simpler: replace the whole identify flow.
-            // Since we can't easily override, we'll let the original identify run and then join.
-            // But we need to capture the password before identify.
-            // Let's modify: store password and then after identify, join.
-            let pendingPassword = null;
-            
-            const originalIdentify = window.socketIdentify;
-            window.socketIdentify = function(storedId, callback) {
-                // Call original identify (which exists in chat.html)
-                if (originalIdentify) {
-                    originalIdentify(storedId, (data) => {
-                        if (callback) callback(data);
-                        // After identity is set, join room with pendingPassword
-                        if (pendingPassword !== undefined) {
-                            socket.emit('join room', roomName, pendingPassword, (response) => {
-                                if (response.success) {
-                                    isRoomReady = true;
-                                    setupRoomMode();
-                                    const modal = document.getElementById('roomPasswordModal');
-                                    if (modal) modal.remove();
-                                    if (typeof requestNotificationPermissionSafe === 'function') {
-                                        requestNotificationPermissionSafe();
-                                    }
-                                } else {
-                                    alert(response.error);
-                                    if (hasPassword) showRoomPasswordModal();
-                                }
-                            });
-                            pendingPassword = null;
+                const input = document.getElementById('roomPasswordInput');
+                const btn = document.getElementById('roomPasswordSubmit');
+                const attempt = () => {
+                    const pwd = input.value;
+                    socket.emit('join room', roomName, pwd, (response) => {
+                        if (response.success) {
+                            document.getElementById('roomPasswordModal')?.remove();
+                            setupRoomMode();
+                            if (typeof requestNotificationPermissionSafe === 'function') requestNotificationPermissionSafe();
+                        } else {
+                            alert(response.error);
+                            input.value = '';
+                            input.focus();
                         }
                     });
-                }
-            };
-            
-            if (hasPassword) {
-                showRoomPasswordModal();
-                window.roomPasswordCallback = (pwd) => {
-                    pendingPassword = pwd;
-                    // Trigger identify again? The identify already happened on page load.
-                    // We'll simply emit join room directly after setting pendingPassword.
-                    // But the identity might not have completed yet. We'll wait a bit.
-                    setTimeout(() => {
-                        if (socket.userIdentity) {
-                            socket.emit('join room', roomName, pwd, (response) => {
-                                if (response.success) {
-                                    isRoomReady = true;
-                                    setupRoomMode();
-                                    document.getElementById('roomPasswordModal')?.remove();
-                                    if (typeof requestNotificationPermissionSafe === 'function') {
-                                        requestNotificationPermissionSafe();
-                                    }
-                                } else {
-                                    alert(response.error);
-                                    showRoomPasswordModal();
-                                }
-                            });
-                        } else {
-                            pendingPassword = pwd;
-                        }
-                    }, 500);
                 };
-            } else {
-                // No password – join immediately after identify
-                const checkInterval = setInterval(() => {
-                    if (socket.userIdentity) {
-                        clearInterval(checkInterval);
+                btn.onclick = attempt;
+                input.onkeypress = (e) => { if (e.key === 'Enter') attempt(); };
+            }
+            
+            // Wait for identity then join
+            const waitForIdentity = setInterval(() => {
+                if (socket.userIdentity) {
+                    clearInterval(waitForIdentity);
+                    if (hasPassword) {
+                        showPasswordModal();
+                    } else {
                         socket.emit('join room', roomName, null, (response) => {
                             if (response.success) {
-                                isRoomReady = true;
                                 setupRoomMode();
-                                if (typeof requestNotificationPermissionSafe === 'function') {
-                                    requestNotificationPermissionSafe();
-                                }
+                                if (typeof requestNotificationPermissionSafe === 'function') requestNotificationPermissionSafe();
                             } else {
                                 console.error('Failed to join room:', response.error);
                             }
                         });
                     }
-                }, 100);
-            }
+                }
+            }, 100);
         })();
     </script>
     `;
-    // Insert before </body>
     chatHtml = chatHtml.replace('</body>', roomScript + '</body>');
-    
     res.send(chatHtml);
 });
 
 // Admin panel
-setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings);
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog);
 
 app.use((req, res) => {
     res.status(404).sendFile(path.join(__dirname, '404.html'));
