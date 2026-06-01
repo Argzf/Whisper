@@ -1,0 +1,47 @@
+# Whisper
+
+> Speak freely & stay anonymous.
+
+Whisper is a serene, no‑tracking chatroom where every user gets a unique, never‑reused name. No accounts, no email – just quiet conversation.[reference:0]
+
+## Key features
+
+- **Unique identity**: Permanent usernames that are never reused — assigned once, yours forever.[reference:1]
+- **File sharing**: Easily share files up to 10MB with other users.[reference:2]
+- **Progressive Web App**: Install it on your device, receive notifications, and stay up to date.[reference:3]
+- **No accounts, no tracking**: Just conversation.[reference:4]
+
+## Core content
+
+### Frequently asked questions
+
+- **What is Whisper?** Whisper is a peaceful, anonymous chatroom. No account or email is required. You simply join, get a unique permanent name, and start talking. It's designed for quiet, uninterrupted conversation.[reference:5]
+- **Do I need an account?** No. Whisper requires no registration, email, or personal information. You are assigned a random, unique name and avatar when you first visit. Your identity is saved locally on your device, so you keep the same name next time.[reference:6]
+- **Is it truly anonymous?** Whisper does not collect any personally identifiable information. We don’t ask for names, emails, or phone numbers. Your messages are tied only to a random user ID stored in your browser.[reference:7]
+- **How long are messages stored?** The server keeps only the 500 most recent messages in memory. Once new messages arrive, older ones are permanently deleted. There is no long‑term message archive.[reference:8]
+- **Can I share files?** Yes. You can upload and share files up to 10MB in size. Files are temporarily stored and automatically removed after a short period.[reference:9]
+- **Can I get notifications?** Whisper supports optional push notifications. When you allow notifications, your browser will alert you about new messages even if the tab isn’t focused.[reference:10]
+- **Can I use Whisper offline?** Whisper is a Progressive Web App (PWA). When you install it on your device, it can launch as a standalone app. However, real‑time chat requires an internet connection.[reference:11]
+- **Is there moderation?** Yes. The room administrator can delete messages and send announcements. The goal is to maintain a peaceful environment.[reference:12]
+- **Is there an age restriction?** Whisper is not intended for children under 13 years old (or under 16 in the European Union).[reference:13]
+- **How can I contact the operator?** You can reach the operator via Discord: @gzf (User ID: `935053416877666304`) or via a direct profile link at `https://discord.com/users/935053416877666304`.[reference:14]
+- **Is Whisper free?** Yes, completely free. No hidden costs, no premium tiers.[reference:15]
+- **How do I install Whisper as an app?** On Android or Chrome desktop, look for the “Install” or “Add to Home Screen” option in your browser menu. On iOS, use the “Share” button then “Add to Home Screen”. Once installed, Whisper opens in its own window, like a native app.[reference:16]
+- **Can I use the same identity on different devices?** No. Your identity (name and avatar) is stored locally in your browser. If you switch devices or clear your browser data, you will be assigned a new, random identity.[reference:17]
+
+### Privacy policy highlights
+
+- **Information collected**: Messages (up to 500 most recent per room), a unique user ID stored in your browser's local storage, technical data (browser type, timestamps) kept for up to 30 days, and notification permission tokens if enabled.[reference:18]
+- **How information is used**: To provide real-time chat and file sharing, maintain a consistent identity, improve performance, troubleshoot issues, prevent abuse, and send push notifications if opted in.[reference:19]
+- **Data retention**: Messages stored in memory (last 500), user ID stored locally on your device, server logs retained up to 30 days.[reference:20]
+- **Third-party services**: No external analytics or tracking scripts are integrated. Hosting providers may have access to data as necessary to operate the Service, but they are contractually obligated to maintain confidentiality.[reference:21]
+- **Your rights**: Depending on your jurisdiction, you may have the right to access, correct, or delete your data, withdraw consent for push notifications, and request information about data processing.[reference:22]
+- **Security**: HTTPS encryption and access controls are used, but absolute security cannot be guaranteed.[reference:23]
+- **Children's privacy**: Not intended for under 13 (or under 16 in the EU).[reference:24]
+
+## Links
+
+- **Join the chat**: `/chat`
+- **Terms of Service**: `/tos`
+- **Privacy Policy**: `/privacy-policy`
+- **FAQ**: `/faq`
