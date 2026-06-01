@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const roomsModule = require('./rooms');
 
-function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings) {
+function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog) {
     function escapeHtml(str) {
         return str.replace(/[&<>]/g, (m) => {
             if (m === '&') return '&amp;';
@@ -649,6 +649,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             return res.status(400).json({ error: 'Room already exists' });
         }
         roomsModule.createRoom(sanitizedName, password || null);
+        
+        // Send room creation log to Discord webhook
+        const roomLink = `${req.protocol}://${req.get('host')}/room/${sanitizedName}`;
+        if (typeof sendRoomCreationLog === 'function') {
+            sendRoomCreationLog(sanitizedName, password || null, roomLink);
+        }
+        
         res.json({ success: true });
     });
 
