@@ -581,8 +581,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"`);
         res.json({ success: true });
     });
-
-    // Keep original logout route
+    
     app.get('/admin/logout', (req, res) => {
         req.session.destroy();
         res.redirect('/admin');
