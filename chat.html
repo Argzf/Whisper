@@ -8,8 +8,11 @@
     <meta name="theme-color" content="#475569">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <style>
-        /* Your existing CSS – unchanged */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             background: #0a0c10;
@@ -47,10 +50,6 @@
         .user-name {
             font-weight: 600;
             font-size: 1.1rem;
-        }
-        .status {
-            font-size: 0.75rem;
-            color: #94a3b8;
         }
         .messages-container {
             flex: 1;
@@ -157,14 +156,9 @@
     <div class="chat-header">
         <div class="user-info">
             <div class="avatar" id="userAvatar">?</div>
-            <div>
-                <div class="user-name" id="userName">Connecting...</div>
-                <div class="status" id="userStatus">● Connecting</div>
-            </div>
+            <div class="user-name" id="userName">Connecting...</div>
         </div>
-        <div>
-            <button id="clearChatBtn" style="background:#ef4444; padding:0.5rem 1rem;">Clear Chat</button>
-        </div>
+        <!-- No status banner – removed as requested -->
     </div>
     <div class="messages-container" id="messages"></div>
     <div class="typing-indicator" id="typingIndicator"></div>
@@ -188,9 +182,7 @@
         const fileInput = document.getElementById('fileInput');
         const userNameSpan = document.getElementById('userName');
         const userAvatarSpan = document.getElementById('userAvatar');
-        const userStatusSpan = document.getElementById('userStatus');
         const typingIndicator = document.getElementById('typingIndicator');
-        const clearChatBtn = document.getElementById('clearChatBtn');
 
         let socket = null;
         let currentUserId = null;
@@ -220,7 +212,8 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message';
             if (msg.userId === currentUserId) messageDiv.classList.add('own');
-            messageDiv.setAttribute('data-message-id', msg.id || Date.now());
+            // Set data-id if message has an id (for deletion)
+            if (msg.id) messageDiv.setAttribute('data-id', msg.id);
 
             const header = document.createElement('div');
             header.className = 'message-header';
@@ -274,8 +267,6 @@
             socket = io();
 
             socket.on('connect', () => {
-                userStatusSpan.textContent = '● Connected';
-                userStatusSpan.style.color = '#22c55e';
                 currentUserId = socket.id;
             });
 
@@ -289,26 +280,24 @@
 
             socket.on('chat message', (msg) => {
                 addMessage(msg);
-                // Trigger notification if not own message
                 if (msg.userId !== currentUserId) {
                     showNotificationIfNeeded(msg.userName, msg.text || 'sent a file');
                 }
             });
 
-            // FIX 1: System messages now trigger notifications
+            // MODIFICATION 1: System messages trigger notifications
             socket.on('system message', (msg) => {
                 addMessage(msg);
-                // Trigger notification for system messages (admin broadcasts)
-                if (msg.text && !msg.text.startsWith('User left') && !msg.text.startsWith('User joined')) {
+                if (msg.text && !msg.text.includes('joined') && !msg.text.includes('left')) {
                     showNotificationIfNeeded('System', msg.text);
                 }
             });
 
-            // FIX 2: Handle message deletion (purge) in real time
+            // MODIFICATION 2: Handle message deletion (purge) in real time
             socket.on('message deleted', (data) => {
-                const targetMsg = document.querySelector(`.message[data-message-id="${data.id}"]`);
+                const targetMsg = document.querySelector(`.message[data-id="${data.id}"]`);
                 if (targetMsg) targetMsg.remove();
-                // Optionally reload history to re-sync
+                // Optional: reload history to stay fully synced
                 loadHistory();
             });
 
@@ -318,11 +307,6 @@
                 } else {
                     typingIndicator.textContent = '';
                 }
-            });
-
-            socket.on('disconnect', () => {
-                userStatusSpan.textContent = '● Disconnected';
-                userStatusSpan.style.color = '#ef4444';
             });
         }
 
@@ -357,15 +341,6 @@
         }
 
         // -------------------------------
-        // Clear chat (local only)
-        // -------------------------------
-        function clearChat() {
-            if (confirm('Clear all messages from your view only?')) {
-                messagesDiv.innerHTML = '';
-            }
-        }
-
-        // -------------------------------
         // Typing indicator
         // -------------------------------
         messageInput.addEventListener('input', () => {
@@ -387,7 +362,6 @@
             if (e.target.files[0]) sendFile(e.target.files[0]);
             fileInput.value = '';
         });
-        clearChatBtn.addEventListener('click', clearChat);
 
         // -------------------------------
         // Request notification permission on load
