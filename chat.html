@@ -449,6 +449,57 @@
       }
     });
 
+    // ==================== ANONYMOUS TYPING INDICATOR ====================
+let typingTimer;
+let isTyping = false;
+
+function emitTyping() {
+    if (!isTyping) {
+        isTyping = true;
+        socket.emit('typing');
+    }
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+        socket.emit('stop typing');
+        isTyping = false;
+    }, 2000);
+}
+
+// Listen for typing events on the message input
+messageInput.addEventListener('keypress', () => {
+    emitTyping();
+});
+messageInput.addEventListener('focus', () => {
+    emitTyping();
+});
+// Stop typing when input loses focus
+messageInput.addEventListener('blur', () => {
+    clearTimeout(typingTimer);
+    if (isTyping) {
+        socket.emit('stop typing');
+        isTyping = false;
+    }
+});
+
+const typingIndicator = document.getElementById('typingIndicator');
+let hideTypingTimer;
+
+// Show the indicator when someone starts typing
+socket.on('user_typing', () => {
+    typingIndicator.style.display = 'inline-flex';
+    clearTimeout(hideTypingTimer);
+    hideTypingTimer = setTimeout(() => {
+        typingIndicator.style.display = 'none';
+    }, 1500);
+});
+
+// Optionally hide immediately when everyone stops typing
+socket.on('user_stop_typing', () => {
+    typingIndicator.style.display = 'none';
+    clearTimeout(hideTypingTimer);
+});
+// ==================== END TYPING INDICATOR ====================
+
     function appendMessage(msg) {
       const isOwn = (msg.senderName === currentUserName);
       const div = document.createElement('div');
