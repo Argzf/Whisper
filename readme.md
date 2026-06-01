@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="wr-banner.png" alt="Whisper Banner" width="600">
+  <img src="/favicon.svg" width="64" style="max-width:100%;">
 </p>
 
 <h1 align="center">
-  🌙 Whisper
+  <strong><code style="font-family: 'Montserrat Alternates', system-ui; font-size: 3rem;">Whisper</code></strong>
 </h1>
 
 <p align="center">
@@ -55,10 +55,6 @@
 - **Frontend**: HTML + TailwindCSS + vanilla JS (PWA)
 - **Storage**: In‑memory (messages) + JSON files (taken names)
 - **Notifications**: Web Push API + Service Worker
-
----
-
-## 📁 Key files
 
 ---
 
