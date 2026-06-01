@@ -19,7 +19,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/package-json/v/Argzf/rj-ds-cr?color=6366f1&label=Version&style=flat-square" alt="Version">
-  <img src="https://img.shields.io/github/license/Argzf/rj-ds-cr?color=818cf8&style=flat-square" alt="License">
   <img src="https://img.shields.io/github/last-commit/Argzf/rj-ds-cr?style=flat-square" alt="Last commit">
   <img src="https://img.shields.io/github/repo-size/Argzf/rj-ds-cr?style=flat-square" alt="Repo size">
   <img src="https://img.shields.io/badge/Node.js-24.x-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js">
