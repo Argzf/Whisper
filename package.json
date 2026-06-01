@@ -1,7 +1,7 @@
 {
   "name": "anonymous-chat-with-discord-log",
   "version": "1.0.0",
-  "description": "Anonymous chatroom with random names/avatars",
+  "description": "Anonymous chatroom with random names & avatars",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
