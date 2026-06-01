@@ -8,185 +8,199 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta name="theme-color" content="#1e293b">
 
-  <title>Whisper</title>
-  <meta name="title" content="Whisper">
-  <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+  <title>Whisper – Peaceful Anonymous Chatroom</title>
+  <meta name="title" content="Whisper – Peaceful Anonymous Chatroom">
+  <meta name="description" content="Whisper is a serene, no‑tracking chatroom. Every user gets a unique, never‑reused name. No accounts, no email – just quiet conversation.">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="whisper.arsan.my">
-  <meta property="og:title" content="Whisper">
-  <meta property="og:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+  <meta property="og:url" content="whisper.arsan.my/">
+  <meta property="og:title" content="Whisper – Peaceful Anonymous Chatroom">
+  <meta property="og:description" content="Whisper is a serene, no‑tracking chatroom. Every user gets a unique, never‑reused name. No accounts, no email – just quiet conversation.">
   <meta property="og:image" content="/wr-banner.png">
 
   <!-- X (Twitter) -->
   <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="whisper.arsan.my">
-  <meta property="twitter:title" content="Whisper">
-  <meta property="twitter:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+  <meta property="twitter:url" content="whisper.arsan.my/">
+  <meta property="twitter:title" content="Whisper – Peaceful Anonymous Chatroom">
+  <meta property="twitter:description" content="Whisper is a serene, no‑tracking chatroom. Every user gets a unique, never‑reused name. No accounts, no email – just quiet conversation.">
   <meta property="twitter:image" content="/wr-banner.png">
 
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Google Fonts + Tailwind CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* Override default Tailwind for a dark, modern look */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
       background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
       min-height: 100vh;
-      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       display: flex;
       flex-direction: column;
-    }
-    .hero {
-      background: rgba(10, 14, 23, 0.5);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-    }
-    .brand-icon {
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      width: 48px;
-      height: 48px;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
-    }
-    .brand-icon svg {
-      width: 28px;
-      height: 28px;
-      stroke: white;
-      stroke-width: 1.8;
-    }
-    .wordmark {
-      font-family: 'Montserrat Alternates', sans-serif;
-      font-size: 2rem;
-      font-weight: 600;
-      background: linear-gradient(135deg, #ffffff, #c7d2fe);
-      background-clip: text;
-      -webkit-background-clip: text;
-      color: transparent;
     }
     .glass-card {
       background: rgba(255, 255, 255, 0.05);
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 2rem;
-      padding: 2rem;
     }
-    .feature-icon {
-      background: rgba(99, 102, 241, 0.2);
-      width: 48px;
-      height: 48px;
-      border-radius: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 1rem;
+    .feature-card {
+      background: rgba(15, 25, 35, 0.6);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s ease;
+    }
+    .feature-card:hover {
+      background: rgba(25, 35, 45, 0.8);
+      border-color: rgba(129, 140, 248, 0.4);
+      transform: translateY(-4px);
     }
     .btn-primary {
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      padding: 0.8rem 2rem;
-      border-radius: 60px;
-      font-weight: 600;
-      transition: all 0.2s;
-      display: inline-block;
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
     }
     .btn-primary:hover {
+      transform: scale(1.02);
+      box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
       transform: scale(0.98);
-      background: linear-gradient(135deg, #818cf8, #a5b4fc);
     }
     footer {
       margin-top: auto;
-      background: rgba(10, 14, 23, 0.4);
+      background: rgba(10, 14, 23, 0.6);
       backdrop-filter: blur(8px);
       border-top: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 1rem;
-      text-align: center;
-      font-size: 0.8rem;
-      color: #94a3b8;
     }
-    footer a {
+    .footer-link {
       color: #a5b4fc;
       text-decoration: none;
       border-bottom: 1px dotted #a5b4fc;
       transition: color 0.2s;
     }
-    footer a:hover {
+    .footer-link:hover {
       color: #c7d2fe;
       border-bottom-color: #c7d2fe;
     }
-    @media (max-width: 768px) {
-      .wordmark { font-size: 1.5rem; }
-      .container { padding: 1.5rem; }
+    @keyframes float {
+      0% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+      100% { transform: translateY(0px); }
+    }
+    .animate-float {
+      animation: float 4s ease-in-out infinite;
+    }
+    @media (max-width: 640px) {
+      .glass-card {
+        border-radius: 1.5rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="hero">
-    <div class="container flex justify-between items-center flex-wrap gap-4">
-      <div class="flex items-center gap-3">
-        <div class="brand-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  <main class="flex-1 px-4 sm:px-6 py-8 sm:py-12 md:py-20 max-w-6xl mx-auto w-full">
+    <!-- Hero Section -->
+    <div class="text-center mb-12 sm:mb-16 md:mb-20">
+      <!-- Decorative floating element -->
+      <div class="inline-block mb-6 animate-float">
+        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 backdrop-blur-sm border border-white/10 flex items-center justify-center">
+          <svg class="w-8 h-8 sm:w-10 sm:h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
         </div>
-        <span class="wordmark">Whisper</span>
       </div>
-      <a href="/chat" class="text-white/80 hover:text-white transition">Launch Chat →</a>
+      
+      <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent mb-4 sm:mb-6">
+        Whisper
+      </h1>
+      <p class="text-lg sm:text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+        Speak freely & stay anonymous.
+      </p>
+      <div class="max-w-2xl mx-auto mt-4">
+        <p class="text-gray-400 text-sm sm:text-base">
+          Whisper is a serene, no‑tracking chatroom. Every user gets a unique, never‑reused name. No accounts, no email – just quiet conversation.
+        </p>
+      </div>
+      
+      <div class="flex flex-col sm:flex-row gap-4 justify-center mt-8 sm:mt-10">
+        <a href="/chat" class="btn-primary px-6 sm:px-8 py-3 sm:py-4 rounded-xl text-white font-semibold text-sm sm:text-base transition-all inline-flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Join the room
+        </a>
+      </div>
     </div>
-  </div>
 
-  <div class="container">
-    <div class="glass-card text-center mb-12">
-      <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">Speak freely & stay anonymous.</h1>
-      <p class="text-gray-300 text-lg max-w-2xl mx-auto">Whisper is a serene, no‑tracking chatroom. Every user gets a unique, never‑reused name. No accounts, no email – just quiet conversation.</p>
-      <div class="mt-8">
-        <a href="/chat" class="btn-primary text-white no-underline">Join the room →</a>
-      </div>
-    </div>
-
-    <div class="grid md:grid-cols-3 gap-6 mt-12">
-      <div class="glass-card text-center">
-        <div class="feature-icon mx-auto">
-          <svg class="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        </div>
-        <h3 class="text-xl font-semibold text-white mb-2">Unique identity</h3>
-        <p class="text-gray-300 text-sm">Permanent, usernames are never reused – assigned once, yours forever.</p>
-      </div>
-      <div class="glass-card text-center">
-        <div class="feature-icon mx-auto">
-          <svg class="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        </div>
-        <h3 class="text-xl font-semibold text-white mb-2">File sharing</h3>
-        <p class="text-gray-300 text-sm">Easily share files less than 10MB.</p>
-      </div>
-      <div class="glass-card text-center">
-        <div class="feature-icon mx-auto">
-          <!-- Custom phone SVG (PWA) -->
-          <svg class="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" transform="matrix(1,0,0,-1,0,0)">
-            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
-            <path d="M8 5h8" stroke-linecap="round"></path>
-            <line x1="10" y1="20" x2="14" y2="20" stroke-linecap="round"></line>
+    <!-- Features Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 md:gap-8 mb-12 sm:mb-16">
+      <!-- Feature 1: Unique identity -->
+      <div class="feature-card p-5 sm:p-6 rounded-xl">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-3 sm:mb-4">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
         </div>
-        <h3 class="text-xl font-semibold text-white mb-2">PWA</h3>
-        <p class="text-gray-300 text-sm">Receive notifications and stay up to date.</p>
+        <h3 class="text-white font-semibold text-lg sm:text-xl mb-1 sm:mb-2">Unique identity</h3>
+        <p class="text-gray-400 text-sm sm:text-base leading-relaxed">Permanent usernames that are never reused — assigned once, yours forever.</p>
+      </div>
+
+      <!-- Feature 2: File sharing -->
+      <div class="feature-card p-5 sm:p-6 rounded-xl">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-3 sm:mb-4">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+        </div>
+        <h3 class="text-white font-semibold text-lg sm:text-xl mb-1 sm:mb-2">File sharing</h3>
+        <p class="text-gray-400 text-sm sm:text-base leading-relaxed">Easily share files up to 10MB with other users in the room.</p>
+      </div>
+
+      <!-- Feature 3: PWA Support -->
+      <div class="feature-card p-5 sm:p-6 rounded-xl sm:col-span-2 lg:col-span-1">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-3 sm:mb-4">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h3 class="text-white font-semibold text-lg sm:text-xl mb-1 sm:mb-2">Progressive Web App</h3>
+        <p class="text-gray-400 text-sm sm:text-base leading-relaxed">Install it on your device, receive notifications, and stay up to date.</p>
       </div>
     </div>
 
-    <div class="text-center mt-12 text-gray-400 text-sm">
-      ✧ No accounts • No tracking • Just conversation ✧
+    <!-- CTA Banner -->
+    <div class="glass-card p-6 sm:p-8 md:p-10 text-center">
+      <p class="text-white/60 text-xs sm:text-sm uppercase tracking-wider mb-2">✨ Experience the difference ✨</p>
+      <p class="text-gray-300 text-base sm:text-lg md:text-xl max-w-2xl mx-auto">
+        No accounts • No tracking • Just conversation
+      </p>
     </div>
-  </div>
+  </main>
 
-  <footer>
-    Made with ☕ by <a href="https://github.com/Argzf" target="_blank" rel="noopener noreferrer">Arsan</a> · © 2026 Whisper
+  <!-- Footer with Links to TOS, Privacy, and FAQ -->
+  <footer class="py-5 sm:py-6 px-4 text-center text-gray-400 text-xs sm:text-sm">
+    <div class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-3">
+      <a href="/tos.html" class="footer-link text-xs sm:text-sm">Terms of Service</a>
+      <a href="/privacy.html" class="footer-link text-xs sm:text-sm">Privacy Policy</a>
+      <a href="/faq.html" class="footer-link text-xs sm:text-sm">FAQ</a>
+    </div>
+    <div>
+      Made with ☕ by <a href="https://github.com/Argzf" target="_blank" rel="noopener noreferrer" class="footer-link">Arsan</a> · © 2026 Whisper
+    </div>
   </footer>
 </body>
 </html>
