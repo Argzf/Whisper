@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const session = require('express-session');
 const multer = require('multer');
 const setupAdmin = require('./admin');
-const roomsModule = require('./rooms'); // <-- new
+const roomsModule = require('./rooms');
 
 const app = express();
 const server = http.createServer(app);
@@ -181,35 +181,11 @@ async function sendToDiscord(name, avatar, text, ip, file = null, roomName = nul
     } catch (err) { console.error('Discord webhook failed:', err.message); }
 }
 
-// Room join/leave log
-async function sendRoomLog(action, roomName, userName, ip) {
+// Single join log (for main chat and rooms)
+async function sendJoinLog(name, avatar, userId, ip, roomName = null) {
     if (!LOG_WEBHOOK_URL) return;
     const embed = {
-        title: action === 'join' ? '🚪 User joined room' : '👋 User left room',
-        color: action === 'join' ? 0x22c55e : 0xef4444,
-        fields: [
-            { name: 'Room', value: roomName, inline: true },
-            { name: 'User', value: userName, inline: true },
-            { name: 'IP Address', value: ip, inline: false },
-            { name: 'Timestamp', value: new Date().toISOString(), inline: false }
-        ],
-        footer: { text: 'Whisper Room' }
-    };
-    try {
-        await fetch(LOG_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ embeds: [embed] })
-        });
-        console.log(`📢 Room ${action} log sent for ${userName}`);
-    } catch (err) { console.error('Room log failed', err); }
-}
-
-// Join log (main chat)
-async function sendJoinLog(name, avatar, userId, ip) {
-    if (!LOG_WEBHOOK_URL) return;
-    const embed = {
-        title: '🚪 User joined the chat',
+        title: roomName ? `🚪 User joined room: ${roomName}` : '🚪 User joined the chat',
         color: 0x5865F2,
         thumbnail: { url: avatar },
         fields: [
@@ -219,11 +195,15 @@ async function sendJoinLog(name, avatar, userId, ip) {
             { name: 'Avatar URL', value: `[link](${avatar})`, inline: true }
         ],
         timestamp: new Date().toISOString(),
-        footer: { text: 'Whisper Room' }
+        footer: { text: roomName ? `Room: ${roomName}` : 'Whisper Room' }
     };
     try {
-        await fetch(LOG_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeds: [embed] }) });
-        console.log(`📢 Join log sent for ${name}`);
+        await fetch(LOG_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ embeds: [embed] })
+        });
+        console.log(`📢 Join log sent for ${name}${roomName ? ` in ${roomName}` : ''}`);
     } catch (err) { console.error('Join log failed', err); }
 }
 
@@ -250,7 +230,7 @@ io.on('connection', (socket) => {
         socket.userIdentity = { name, avatar, userId };
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
-        sendJoinLog(name, avatar, userId, clientIP);
+        // Do NOT log join here – we'll log when they join a specific room or main chat
     });
 
     // Main chat (original)
@@ -278,6 +258,10 @@ io.on('connection', (socket) => {
 
     // ---- Room system ----
     socket.on('join room', async (roomName, password, callback) => {
+        if (!socket.userIdentity) {
+            callback({ success: false, error: 'Not identified' });
+            return;
+        }
         if (!roomsModule.roomExists(roomName)) {
             callback({ success: false, error: 'Room does not exist' });
             return;
@@ -296,9 +280,12 @@ io.on('connection', (socket) => {
         socket.currentRoom = roomName;
         const roomMessages = roomsModule.getRoomMessages(roomName);
         callback({ success: true, messages: roomMessages });
-        const name = socket.userIdentity?.name || 'Anonymous';
+        const name = socket.userIdentity.name;
+        const avatar = socket.userIdentity.avatar;
+        const userId = socket.userIdentity.userId;
         const ip = getClientIP(socket);
-        await sendRoomLog('join', roomName, name, ip);
+        // Send single join log (with room name)
+        await sendJoinLog(name, avatar, userId, ip, roomName);
     });
 
     socket.on('room chat message', async (data) => {
@@ -334,10 +321,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        if (socket.currentRoom && socket.userIdentity) {
-            const ip = getClientIP(socket);
-            sendRoomLog('leave', socket.currentRoom, socket.userIdentity.name, ip);
-        }
         userSocketMap.delete(socket.id);
         console.log('🔌 Disconnected');
     });
@@ -347,293 +330,247 @@ io.on('connection', (socket) => {
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/chat', (req, res) => { res.sendFile(path.join(__dirname, 'chat.html')); });
 
-// Dynamic room route
+// Dynamic room route – uses the same UI as chat.html
 app.get('/room/:roomName', (req, res) => {
     const roomName = req.params.roomName;
     if (!roomsModule.roomExists(roomName)) {
         return res.status(404).sendFile(path.join(__dirname, '404.html'));
     }
     const room = roomsModule.getRoom(roomName);
-    // Send a minimal HTML that loads the same chat client but with room context
-    // We'll reuse chat.html but pass room data via query or script variable.
-    // For simplicity, we send a slightly modified version that sets a global.
-    const roomHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Whisper – ${escapeHtml(roomName)}</title>
-    <link rel="manifest" href="/manifest.json">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <meta name="theme-color" content="#1e293b">
-    <style>/* same as main chat.html – you can copy the full style block from your chat.html or link to a shared CSS file */</style>
-    <script src="/socket.io/socket.io.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
-            height: 100dvh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-        }
-        .whisper-banner {
-            background: rgba(10, 14, 23, 0.65);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 0.9rem 1.5rem;
-        }
-        .banner-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        .wordmark {
-            font-family: 'Montserrat Alternates', system-ui, sans-serif;
-            font-size: 1.55rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #ffffff, #c7d2fe);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-        }
-        .tagline {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            background: rgba(255,255,255,0.05);
-            padding: 0.2rem 0.6rem;
-            border-radius: 40px;
-        }
-        #messagesContainer {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-        }
-        .message:not(.own) .message-bubble {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .own .message-bubble {
-            background: rgba(99, 102, 241, 0.8);
-            backdrop-filter: blur(4px);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .message-bubble {
-            word-break: break-word;
-            border-radius: 1rem;
-            padding: 0.5rem 1rem;
-            display: inline-block;
-            max-width: 80%;
-        }
-        .input-container {
-            background: rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(8px);
-            border-top: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 0.75rem;
-        }
-        .input-group {
-            display: flex;
-            gap: 0.5rem;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        #messageInput {
-            flex: 1;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 2rem;
-            padding: 0.75rem 1rem;
-            color: white;
-        }
-        .send-btn {
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
-            border: none;
-            border-radius: 2rem;
-            padding: 0 1.25rem;
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .avatar-img {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-        }
-        .typing-indicator {
-            font-size: 0.7rem;
-            color: #94a3b8;
-            padding: 0.25rem 1rem;
-            font-style: italic;
-        }
-    </style>
-</head>
-<body>
-    <div class="whisper-banner">
-        <div class="banner-container">
-            <div class="brand">
-                <span class="wordmark">Whisper · ${escapeHtml(roomName)}</span>
-            </div>
-            <div class="tagline">Anonymous · Instant</div>
-        </div>
-    </div>
-    <div id="messagesContainer" class="space-y-2"></div>
-    <div class="typing-indicator" id="typingIndicator"></div>
-    <div class="input-container">
-        <div class="input-group">
-            <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off">
-            <button id="sendBtn" class="send-btn">Send</button>
-        </div>
-    </div>
 
+    // Read the existing chat.html file and inject room-specific script
+    const chatHtmlPath = path.join(__dirname, 'chat.html');
+    let chatHtml = fs.readFileSync(chatHtmlPath, 'utf8');
+
+    // Replace the title and add a room banner indicator
+    chatHtml = chatHtml.replace('<title>Whisper</title>', `<title>Whisper · ${escapeHtml(roomName)}</title>`);
+    
+    // Inject room name into the banner (optional – keep original design but add room name)
+    // We'll add a small indicator in the header
+    const roomIndicator = `<div class="tagline ml-2" style="background:rgba(99,102,241,0.2);">🔒 ${room.hasPassword ? 'Private' : 'Public'} room</div>`;
+    // Insert after the existing tagline
+    chatHtml = chatHtml.replace('<div class="tagline">Anonymous · Instant</div>', `<div class="tagline">Anonymous · Instant</div>${roomIndicator}`);
+
+    // Inject room initialization script at the end of the body, before the closing </body>
+    const roomScript = `
     <script>
-        const roomName = ${JSON.stringify(roomName)};
-        const hasPassword = ${room.hasPassword};
-        let socket = io();
-        let currentUserName = null;
-        let currentUserId = null;
-        let typingTimeout = null;
-
-        const messagesContainer = document.getElementById('messagesContainer');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const typingIndicator = document.getElementById('typingIndicator');
-
-        function appendMessage(msg) {
-            const isOwn = (msg.senderName === currentUserName);
-            const div = document.createElement('div');
-            div.className = \`flex \${isOwn ? 'justify-end' : 'justify-start'} items-start gap-2 mb-2\`;
-            if (!isOwn) {
-                const avatarImg = document.createElement('img');
-                avatarImg.src = msg.senderAvatar;
-                avatarImg.className = 'avatar-img mt-1';
-                div.appendChild(avatarImg);
-            }
-            const bubble = document.createElement('div');
-            bubble.className = \`message-bubble \${isOwn ? 'own' : ''}\`;
-            if (!isOwn) {
-                const nameSpan = document.createElement('div');
-                nameSpan.className = 'text-xs text-gray-400 mb-1';
-                nameSpan.innerText = msg.senderName;
-                bubble.appendChild(nameSpan);
-            }
-            const textSpan = document.createElement('div');
-            if (msg.file) {
-                if (msg.file.type && msg.file.type.startsWith('image/')) {
-                    const img = document.createElement('img');
-                    img.src = msg.file.url;
-                    img.className = 'max-w-[200px] rounded cursor-pointer';
-                    img.onclick = () => window.open(msg.file.url);
-                    bubble.appendChild(img);
-                } else {
-                    const link = document.createElement('a');
-                    link.href = msg.file.url;
-                    link.textContent = \`📎 \${msg.file.name}\`;
-                    link.target = '_blank';
-                    link.className = 'text-indigo-300 underline';
-                    bubble.appendChild(link);
-                }
-            } else {
-                textSpan.innerText = msg.text;
-                bubble.appendChild(textSpan);
-            }
-            div.appendChild(bubble);
-            messagesContainer.appendChild(div);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function safeNotify(sender, text) {
-            if (!('Notification' in window)) return;
-            if (Notification.permission === 'granted' && sender !== currentUserName) {
-                new Notification(\`💬 \${sender}\`, { body: text, icon: '/icons/icon-192.png' });
-            }
-        }
-
-        function sendMessage() {
-            const text = messageInput.value.trim();
-            if (!text) return;
-            socket.emit('room chat message', { text, file: null });
-            messageInput.value = '';
-        }
-
-        if (hasPassword) {
-            const modalHtml = \`
-                <div id="roomPasswordModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;">
-                    <div style="background:#1e293b;border-radius:1rem;padding:2rem;max-width:400px;width:90%;text-align:center;">
-                        <h3 style="color:white;margin-bottom:1rem;">🔐 Room Password Required</h3>
-                        <p style="color:#94a3b8;margin-bottom:1.5rem;">This room is password protected.</p>
-                        <input type="password" id="roomPassword" placeholder="Enter password" style="width:100%;padding:0.75rem;margin-bottom:1rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
-                        <button id="submitPassword" style="background:#3b82f6;padding:0.75rem 1.5rem;border:none;border-radius:0.5rem;color:white;cursor:pointer;">Enter Room</button>
-                    </div>
-                </div>
-            \`;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            document.getElementById('submitPassword').addEventListener('click', () => {
-                const password = document.getElementById('roomPassword').value;
-                authenticateAndJoin(password);
-            });
-        } else {
-            authenticateAndJoin(null);
-        }
-
-        function authenticateAndJoin(password) {
-            let storedId = localStorage.getItem('whisper_user_id');
-            socket.emit('identify', storedId, (data) => {
-                currentUserName = data.name;
-                currentUserId = data.userId;
-                localStorage.setItem('whisper_user_id', data.userId);
-                socket.emit('join room', roomName, password, (response) => {
-                    if (response.success) {
-                        document.getElementById('roomPasswordModal')?.remove();
-                        response.messages.forEach(msg => appendMessage(msg));
-                        if (Notification.permission === 'default') Notification.requestPermission();
-                    } else {
-                        alert(response.error);
-                        if (hasPassword) window.location.reload(); // retry
+        // Override socket handlers for room mode
+        (function() {
+            const roomName = ${JSON.stringify(roomName)};
+            const hasPassword = ${room.hasPassword};
+            let originalEmit = socket.emit;
+            let isRoomReady = false;
+            
+            // Store original handlers to replace later
+            let originalLoadHistory = null;
+            let originalChatMessage = null;
+            
+            function setupRoomMode() {
+                // Remove existing listeners for main chat events
+                socket.off('chat message');
+                socket.off('load messages');
+                socket.off('load history');
+                
+                // Add room-specific listeners
+                socket.on('room chat message', (msg) => {
+                    // Use the same appendMessage function (already defined in chat.html)
+                    if (typeof appendMessage === 'function') {
+                        appendMessage(msg);
+                    } else if (typeof addMessage === 'function') {
+                        addMessage(msg);
+                    }
+                    if (msg.senderName !== currentUserName && typeof safeNotify === 'function') {
+                        safeNotify(msg.senderName, msg.text || 'sent a file');
                     }
                 });
-            });
-        }
-
-        socket.on('room chat message', (msg) => {
-            appendMessage(msg);
-            if (msg.senderName !== currentUserName) safeNotify(msg.senderName, msg.text || 'sent a file');
-        });
-
-        socket.on('room typing', (data) => {
-            if (data.userId !== currentUserId && data.isTyping) {
-                typingIndicator.innerText = \`\${data.userName} is typing...\`;
-            } else {
-                typingIndicator.innerText = '';
+                
+                socket.on('load room messages', (msgs) => {
+                    if (typeof messagesContainer !== 'undefined') messagesContainer.innerHTML = '';
+                    msgs.forEach(msg => {
+                        if (typeof appendMessage === 'function') appendMessage(msg);
+                        else if (typeof addMessage === 'function') addMessage(msg);
+                    });
+                });
+                
+                socket.on('room typing', (data) => {
+                    const typingIndicator = document.getElementById('typingIndicator');
+                    if (typingIndicator) {
+                        if (data.userId !== socket.id && data.isTyping) {
+                            typingIndicator.innerText = \`\${data.userName} is typing...\`;
+                        } else {
+                            typingIndicator.innerText = '';
+                        }
+                    }
+                });
+                
+                // Override sendMessage to use room chat message
+                const originalSendMessage = window.sendMessage;
+                window.sendMessage = function() {
+                    const text = document.getElementById('messageInput').value.trim();
+                    if (!text) return;
+                    socket.emit('room chat message', { text, file: null });
+                    document.getElementById('messageInput').value = '';
+                };
+                
+                // Override file upload message
+                const originalFileHandler = window.handleFileUpload;
+                window.handleFileUpload = async function(file) {
+                    // Use existing upload function if defined
+                    if (typeof uploadFile === 'function') {
+                        const { url, name, type } = await uploadFile(file);
+                        socket.emit('room chat message', { text: '', file: { url, name, type } });
+                    } else {
+                        console.error('uploadFile not defined');
+                    }
+                };
+                
+                // Load room history
+                socket.emit('load room history');
             }
-        });
-
-        messageInput.addEventListener('input', () => {
-            if (typingTimeout) clearTimeout(typingTimeout);
-            socket.emit('room typing', true);
-            typingTimeout = setTimeout(() => socket.emit('room typing', false), 1000);
-        });
-
-        sendBtn.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+            
+            // Wait for identity and then join room
+            function joinRoomAfterIdentity(password) {
+                // The 'identify' callback already sets currentUserName, etc.
+                // We'll hook into the existing identify flow
+                const originalIdentifyCallback = window.identifyCallback;
+                window.identifyCallback = function(data) {
+                    if (originalIdentifyCallback) originalIdentifyCallback(data);
+                    // After identity is set, join the room
+                    socket.emit('join room', roomName, password, (response) => {
+                        if (response.success) {
+                            isRoomReady = true;
+                            setupRoomMode();
+                            // Remove password modal if present
+                            const modal = document.getElementById('roomPasswordModal');
+                            if (modal) modal.remove();
+                            // Request notification permission after successful join
+                            if (typeof requestNotificationPermissionSafe === 'function') {
+                                requestNotificationPermissionSafe();
+                            }
+                        } else {
+                            alert(response.error);
+                            if (hasPassword) {
+                                // Show password modal again
+                                showRoomPasswordModal();
+                            } else {
+                                console.error('Failed to join room');
+                            }
+                        }
+                    });
+                };
+            }
+            
+            function showRoomPasswordModal() {
+                const modalHtml = \`
+                    <div id="roomPasswordModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;">
+                        <div style="background:#1e293b;border-radius:1rem;padding:2rem;max-width:400px;width:90%;text-align:center;">
+                            <h3 style="color:white;margin-bottom:1rem;">🔐 Room Password Required</h3>
+                            <p style="color:#94a3b8;margin-bottom:1.5rem;">This room is password protected.</p>
+                            <input type="password" id="roomPasswordInput" placeholder="Enter password" style="width:100%;padding:0.75rem;margin-bottom:1rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
+                            <button id="roomPasswordSubmit" style="background:#3b82f6;padding:0.75rem 1.5rem;border:none;border-radius:0.5rem;color:white;cursor:pointer;">Enter Room</button>
+                        </div>
+                    </div>
+                \`;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                document.getElementById('roomPasswordSubmit').addEventListener('click', () => {
+                    const pwd = document.getElementById('roomPasswordInput').value;
+                    joinRoomAfterIdentity(pwd);
+                });
+            }
+            
+            // Override the identify event to inject our join logic
+            // The original socket.on('identity') already exists; we need to run after it.
+            // We'll wait for the existing identity handler to finish.
+            // Simpler: replace the whole identify flow.
+            // Since we can't easily override, we'll let the original identify run and then join.
+            // But we need to capture the password before identify.
+            // Let's modify: store password and then after identify, join.
+            let pendingPassword = null;
+            
+            const originalIdentify = window.socketIdentify;
+            window.socketIdentify = function(storedId, callback) {
+                // Call original identify (which exists in chat.html)
+                if (originalIdentify) {
+                    originalIdentify(storedId, (data) => {
+                        if (callback) callback(data);
+                        // After identity is set, join room with pendingPassword
+                        if (pendingPassword !== undefined) {
+                            socket.emit('join room', roomName, pendingPassword, (response) => {
+                                if (response.success) {
+                                    isRoomReady = true;
+                                    setupRoomMode();
+                                    const modal = document.getElementById('roomPasswordModal');
+                                    if (modal) modal.remove();
+                                    if (typeof requestNotificationPermissionSafe === 'function') {
+                                        requestNotificationPermissionSafe();
+                                    }
+                                } else {
+                                    alert(response.error);
+                                    if (hasPassword) showRoomPasswordModal();
+                                }
+                            });
+                            pendingPassword = null;
+                        }
+                    });
+                }
+            };
+            
+            if (hasPassword) {
+                showRoomPasswordModal();
+                window.roomPasswordCallback = (pwd) => {
+                    pendingPassword = pwd;
+                    // Trigger identify again? The identify already happened on page load.
+                    // We'll simply emit join room directly after setting pendingPassword.
+                    // But the identity might not have completed yet. We'll wait a bit.
+                    setTimeout(() => {
+                        if (socket.userIdentity) {
+                            socket.emit('join room', roomName, pwd, (response) => {
+                                if (response.success) {
+                                    isRoomReady = true;
+                                    setupRoomMode();
+                                    document.getElementById('roomPasswordModal')?.remove();
+                                    if (typeof requestNotificationPermissionSafe === 'function') {
+                                        requestNotificationPermissionSafe();
+                                    }
+                                } else {
+                                    alert(response.error);
+                                    showRoomPasswordModal();
+                                }
+                            });
+                        } else {
+                            pendingPassword = pwd;
+                        }
+                    }, 500);
+                };
+            } else {
+                // No password – join immediately after identify
+                const checkInterval = setInterval(() => {
+                    if (socket.userIdentity) {
+                        clearInterval(checkInterval);
+                        socket.emit('join room', roomName, null, (response) => {
+                            if (response.success) {
+                                isRoomReady = true;
+                                setupRoomMode();
+                                if (typeof requestNotificationPermissionSafe === 'function') {
+                                    requestNotificationPermissionSafe();
+                                }
+                            } else {
+                                console.error('Failed to join room:', response.error);
+                            }
+                        });
+                    }
+                }, 100);
+            }
+        })();
     </script>
-</body>
-</html>
     `;
-    res.send(roomHtml);
+    // Insert before </body>
+    chatHtml = chatHtml.replace('</body>', roomScript + '</body>');
+    
+    res.send(chatHtml);
 });
 
-// Admin panel (already includes room management in admin.js)
+// Admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings);
 
 app.use((req, res) => {
@@ -642,7 +579,7 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🔥 Chat running on http://localhost:${PORT}`);
+    console.log(`🔥 Chat + Admin + Rooms running on http://localhost:${PORT}`);
 });
 
 function escapeHtml(str) {
