@@ -162,6 +162,8 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
         description: text || '*sent a file*',
         footer: { text: `IP: ${ip}` }
     };
+    // Make the footer IP a clickable link (Discord Markdown)
+    embed.footer.text = `IP: [${ip}](https://whatismyipaddress.com/ip/${ip})`;
     if (file) {
         if (file.type && file.type.startsWith('image/')) {
             embed.image = { url: file.url };
@@ -180,7 +182,7 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
     } catch (err) { console.error('Discord webhook failed:', err.message); }
 }
 
-// Join log for main chat (restored to original behavior)
+// Join log for main chat (with hyperlinked IP)
 async function sendJoinLog(name, avatar, userId, ip) {
     if (!LOG_WEBHOOK_URL) return;
     const embed = {
@@ -190,11 +192,11 @@ async function sendJoinLog(name, avatar, userId, ip) {
         fields: [
             { name: 'Username', value: name, inline: true },
             { name: 'User ID', value: `\`${userId}\``, inline: false },
-            { name: 'IP Address', value: ip, inline: false },
+            { name: 'IP Address', value: `[${ip}](https://whatismyipaddress.com/ip/${ip})`, inline: false },
             { name: 'Avatar URL', value: `[link](${avatar})`, inline: true }
         ],
         timestamp: new Date().toISOString(),
-        footer: { text: 'Whisper Room' }
+        footer: { text: 'Default Room' }
     };
     try {
         await fetch(LOG_WEBHOOK_URL, {
@@ -230,7 +232,7 @@ io.on('connection', (socket) => {
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
         
-        // RESTORED: Log main chat join
+        // Log main chat join with hyperlinked IP
         sendJoinLog(name, avatar, userId, clientIP);
     });
 
