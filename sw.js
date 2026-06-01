@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whisper-room-v2';  // Version bumped to force update
+const CACHE_NAME = 'whisper-room-v3';
 const urlsToCache = [
   '/chat',
   '/chat.html',
@@ -30,28 +30,54 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = event.request.url;
-
-  // Bypass cache for API, admin, and upload endpoints
   if (url.includes('/api/') || url.includes('/admin/') || url.includes('/upload')) {
     event.respondWith(fetch(event.request));
     return;
   }
-
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
+      .then(response => response || fetch(event.request))
+      .catch(() => {
+        if (event.request.mode === 'navigate') {
+          return caches.match('/chat.html');
         }
-        return fetch(event.request).catch(() => {
-          if (event.request.mode === 'navigate') {
-            return caches.match('/chat.html');
-          }
-          return new Response('Offline – Whisper Room requires a network connection for chat.', {
-            status: 503,
-            statusText: 'Service Unavailable'
-          });
+        return new Response('Offline – Whisper Room requires a network connection for chat.', {
+          status: 503,
+          statusText: 'Service Unavailable'
         });
+      })
+  );
+});
+
+// NEW: Handle push notifications (if you decide to send them from server)
+self.addEventListener('push', event => {
+  let data = { title: 'Whisper', body: 'New message' };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      vibrate: [200, 100, 200]
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(windowClients => {
+        if (windowClients.length > 0) {
+          return windowClients[0].focus();
+        }
+        return clients.openWindow('/chat');
       })
   );
 });
