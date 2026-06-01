@@ -116,7 +116,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </body></html>`;
             res.send(html);
         } else {
-            // RESTORED LOGIN PAGE (simple, clean, no extra elements)
+            // RESTORED LOGIN PAGE – button now centered
             res.send(`
                 <!DOCTYPE html>
                 <html lang="en">
@@ -139,6 +139,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             border-radius: 1rem;
                             text-align: center;
                             border: 1px solid #334155;
+                            width: 300px;
                         }
                         input {
                             background: #0f172a;
@@ -148,6 +149,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             border-radius: 0.5rem;
                             margin: 0.5rem 0;
                             width: 100%;
+                            box-sizing: border-box;
                         }
                         button {
                             background: #3b82f6;
@@ -157,6 +159,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             color: white;
                             cursor: pointer;
                             width: 100%;
+                            margin-top: 0.5rem;
                         }
                         button:hover { background: #2563eb; }
                     </style>
@@ -282,7 +285,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ success: true });
     });
 
-    // NEW: Custom identity change (admin can set any name)
+    // Custom identity change
     app.post('/admin/change-custom-identity', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const { userId, customName } = req.body;
@@ -292,16 +295,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         if (!userMappings[userId]) return res.status(400).json({ error: 'User not found' });
 
         const newName = customName.trim();
-        // Check if the name is already taken by another user
         const existing = Object.entries(userMappings).find(([id, data]) => data.name === newName && id !== userId);
         if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
-        // Keep the existing avatar, only change name
         const oldName = userMappings[userId].name;
         userMappings[userId].name = newName;
         saveUserMappings();
 
-        // Update taken names: remove old name, add new name if not already present
         if (oldName && takenNames.has(oldName)) {
             takenNames.delete(oldName);
             saveTakenNames();
