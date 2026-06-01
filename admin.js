@@ -345,7 +345,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 // Dynamic welcome
                 const hour = new Date().getHours();
                 let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-                document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
+                document.getElementById('welcomeMessage').innerText = greeting + ', Handsome.';
 
                 // Socket.IO for real-time updates
                 const socket = io();
