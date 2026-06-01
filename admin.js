@@ -410,7 +410,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 // Dynamic welcome
                 const hour = new Date().getHours();
                 let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-                document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
+                document.getElementById('welcomeMessage').innerText = greeting + ', Handsome.';
 
                 const socket = io();
                 
@@ -697,7 +697,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         const presets = {
             Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
             ArGzf: { name: 'ArGzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-            Admin: { name: 'Admin', avatar: 'https://randomuser.me/api/portraits/lego/8.jpg' }, // external reliable avatar
+            Admin: { name: 'Admin', avatar: '/icons/admin-favicon.svg' },
         };
         const newIdentity = presets[preset];
         if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
