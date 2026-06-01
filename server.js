@@ -17,8 +17,8 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ===== FEATURE FLAG: Temporarily disable rooms =====
-const ROOMS_ENABLED = false; // Set to true to re-enable rooms
+// ===== FEATURE FLAG: Rooms disabled =====
+const ROOMS_ENABLED = false;
 
 // Helper to build absolute URL from request
 function getAbsoluteUrl(req, relativePath) {
@@ -152,8 +152,8 @@ function getClientIP(socket) {
     return socket.handshake.address;
 }
 
-// Discord webhook functions (unchanged)
-async function sendToDiscord(name, avatar, text, ip, file = null, roomName = null, roomLink = null) {
+// Discord webhook functions
+async function sendToDiscord(name, avatar, text, ip, file = null) {
     if (!WEBHOOK_URL) return;
     const embed = {
         author: { name: name, icon_url: avatar },
@@ -170,46 +170,21 @@ async function sendToDiscord(name, avatar, text, ip, file = null, roomName = nul
             embed.description += `\n📎 [${file.name}](${file.url})`;
         }
     }
-    if (roomName && roomLink) {
-        embed.fields = [{ name: '📍 Room', value: `[${roomName}](${roomLink})`, inline: true }];
-    }
     try {
         await fetch(WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ embeds: [embed] })
         });
-        console.log(`📨 Discord embed sent for ${name}${roomName ? ` in ${roomName}` : ''}`);
+        console.log(`📨 Discord embed sent for ${name}`);
     } catch (err) { console.error('Discord webhook failed:', err.message); }
 }
 
-async function sendRoomCreationLog(roomName, password, roomLink) {
+// Join log for main chat (restored to original behavior)
+async function sendJoinLog(name, avatar, userId, ip) {
     if (!LOG_WEBHOOK_URL) return;
     const embed = {
-        title: '🏠 New Room Created',
-        color: 0x22c55e,
-        fields: [
-            { name: 'Room Name', value: roomName, inline: true },
-            { name: 'Password', value: password ? `\`${password}\`` : 'None (public)', inline: true },
-            { name: 'Room Link', value: `[Click to join](${roomLink})`, inline: false }
-        ],
-        timestamp: new Date().toISOString(),
-        footer: { text: 'Whisper Room Admin' }
-    };
-    try {
-        await fetch(LOG_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ embeds: [embed] })
-        });
-        console.log(`📢 Room creation log sent for ${roomName}`);
-    } catch (err) { console.error('Room creation log failed', err); }
-}
-
-async function sendJoinLog(name, avatar, userId, ip, roomName = null, roomLink = null) {
-    if (!LOG_WEBHOOK_URL) return;
-    const embed = {
-        title: roomName ? `🚪 User joined room: ${roomName}` : '🚪 User joined the main chat',
+        title: '🚪 User joined the chat',
         color: 0x5865F2,
         thumbnail: { url: avatar },
         fields: [
@@ -219,22 +194,18 @@ async function sendJoinLog(name, avatar, userId, ip, roomName = null, roomLink =
             { name: 'Avatar URL', value: `[link](${avatar})`, inline: true }
         ],
         timestamp: new Date().toISOString(),
-        footer: { text: roomName ? `Room: ${roomName}` : 'Whisper Room' }
+        footer: { text: 'Whisper Room' }
     };
-    if (roomName && roomLink) {
-        embed.fields.push({ name: 'Room Link', value: `[Click to join](${roomLink})`, inline: false });
-    }
     try {
         await fetch(LOG_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ embeds: [embed] })
         });
-        console.log(`📢 Join log sent for ${name}${roomName ? ` in ${roomName}` : ''}`);
+        console.log(`📢 Join log sent for ${name}`);
     } catch (err) { console.error('Join log failed', err); }
 }
 
-// ========== MAIN CHAT MESSAGE STORAGE ==========
 let messages = [];
 let userSocketMap = new Map();
 
@@ -258,6 +229,9 @@ io.on('connection', (socket) => {
         socket.userIdentity = { name, avatar, userId };
         userSocketMap.set(socket.id, userId);
         callback({ userId, name, avatar });
+        
+        // RESTORED: Log main chat join
+        sendJoinLog(name, avatar, userId, clientIP);
     });
 
     // Main chat events
@@ -283,31 +257,16 @@ io.on('connection', (socket) => {
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
-    // Main chat join log (optional)
-    socket.on('join main chat', async () => {
-        if (!socket.userIdentity) return;
-        const { name, avatar, userId } = socket.userIdentity;
-        const ip = getClientIP(socket);
-        await sendJoinLog(name, avatar, userId, ip);
-    });
-
-    // ========== ROOM SYSTEM (DISABLED) ==========
+    // Room events (disabled, but keep stubs to avoid errors)
     if (ROOMS_ENABLED) {
-        socket.on('join room', async (roomName, password, callback) => {
-            // ... full room logic (omitted for brevity, but can be restored later)
-            callback({ success: false, error: 'Rooms temporarily disabled' });
-        });
-        socket.on('room chat message', async (data) => {});
-        socket.on('load room history', () => {});
-        socket.on('room typing', (isTyping) => {});
+        // ... full room logic would go here
     } else {
-        // Respond with error when clients try to use rooms
         socket.on('join room', (roomName, password, callback) => {
             callback({ success: false, error: 'Rooms feature is temporarily disabled' });
         });
-        socket.on('room chat message', async (data) => {});
+        socket.on('room chat message', () => {});
         socket.on('load room history', () => {});
-        socket.on('room typing', (isTyping) => {});
+        socket.on('room typing', () => {});
     }
 
     socket.on('disconnect', () => {
@@ -316,14 +275,12 @@ io.on('connection', (socket) => {
     });
 });
 
-// ========== HTTP ROUTES ==========
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 app.get('/chat', (req, res) => { res.sendFile(path.join(__dirname, 'chat.html')); });
 
 // Room route – disabled
 if (ROOMS_ENABLED) {
     app.get('/room/:roomName', (req, res) => {
-        // Full room rendering code (can be restored later)
         res.status(404).sendFile(path.join(__dirname, '404.html'));
     });
 } else {
@@ -332,8 +289,7 @@ if (ROOMS_ENABLED) {
     });
 }
 
-// Admin panel – pass ROOMS_ENABLED flag
-setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED);
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED);
 
 app.use((req, res) => {
     res.status(404).sendFile(path.join(__dirname, '404.html'));
