@@ -23,7 +23,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
     app.get('/admin', (req, res) => {
         if (!isAuthenticated(req)) {
-            // Show login form
+            // Show login form (unchanged)
             return res.send(`<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -120,12 +120,22 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 @keyframes fadeOut {
                     to { opacity: 0; transform: translateX(100%); }
                 }
+                .chat-btn {
+                    background: rgba(99, 102, 241, 0.2);
+                    border: 1px solid rgba(99, 102, 241, 0.5);
+                    transition: all 0.2s;
+                }
+                .chat-btn:hover {
+                    background: rgba(99, 102, 241, 0.4);
+                    border-color: #6366f1;
+                    transform: scale(0.98);
+                }
             </style>
         </head>
         <body class="min-h-screen">
             <div id="toast-container"></div>
             <div class="container mx-auto px-4 py-6 max-w-7xl">
-                <!-- Header -->
+                <!-- Header with Go to Chat button -->
                 <div class="flex justify-between items-center mb-8">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
@@ -138,16 +148,15 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             <p class="text-sm text-gray-400" id="welcomeMessage"></p>
                         </div>
                     </div>
-                     <a href="/chat" class="chat-btn px-4 py-2 rounded-lg text-indigo-300 hover:text-white transition-colors flex items-center gap-2 shadow-md">
+                    <a href="/chat" class="chat-btn px-4 py-2 rounded-lg text-indigo-300 hover:text-white transition-colors flex items-center gap-2 shadow-md">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-5 h-5">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
                         <span class="hidden sm:inline">Go to Chat</span>
                     </a>
                 </div>
-                </div>
 
-                <!-- Stats Overview -->
+                <!-- Stats Overview (unchanged) -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div class="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50 card">
                         <div class="flex items-center justify-between">
@@ -240,8 +249,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto mb-2 opacity-50">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
-                        <p>This feature is temporarily disabled.</p>
-                        <p class="text-xs mt-1">I know I'm being lazy..</p>
+                        <p>Rooms feature is temporarily disabled.</p>
+                        <p class="text-xs mt-1">Check back later.</p>
                     </div>
                     `}
                 </div>
@@ -311,7 +320,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 </div>
             </div>
 
-            <!-- Custom Modal -->
+            <!-- Custom Modal (unchanged) -->
             <div id="customModal" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;z-index:2000;">
                 <div style="background:#1e293b;border-radius:1rem;padding:1.5rem;max-width:500px;width:90%;margin:20px;text-align:center;">
                     <h3 id="modalTitle" style="color:white;margin-bottom:1rem;"></h3>
@@ -330,7 +339,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </div>
 
             <script>
-                // Toast function
+                // Toast function (unchanged)
                 function showToast(message, type = 'info') {
                     const container = document.getElementById('toast-container');
                     const toast = document.createElement('div');
@@ -343,7 +352,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     }, 3000);
                 }
 
-                // Dynamic welcome (handsome + night owl special 01:00 - 04:50)
+                // Dynamic welcome (handsome + night owl special)
                 const now = new Date();
                 const hour = now.getHours();
                 const minute = now.getMinutes();
@@ -694,11 +703,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }
             roomsModule.createRoom(sanitizedName, password || null);
             
-            // Send room creation log to Discord
             const roomLink = `${req.protocol}://${req.get('host')}/room/${sanitizedName}`;
-            if (sendRoomCreationLog) {
-                sendRoomCreationLog(sanitizedName, password || null, roomLink);
-            }
+            if (sendRoomCreationLog) sendRoomCreationLog(sanitizedName, password || null, roomLink);
             
             res.json({ success: true });
         });
@@ -706,9 +712,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         app.post('/admin/api/rooms/update-password', (req, res) => {
             if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
             const { roomName, password } = req.body;
-            if (!roomsModule.roomExists(roomName)) {
-                return res.status(400).json({ error: 'Room not found' });
-            }
+            if (!roomsModule.roomExists(roomName)) return res.status(400).json({ error: 'Room not found' });
             roomsModule.updateRoomPassword(roomName, password || null);
             res.json({ success: true });
         });
@@ -716,20 +720,17 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         app.post('/admin/api/rooms/delete', (req, res) => {
             if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
             const { roomName } = req.body;
-            if (!roomsModule.roomExists(roomName)) {
-                return res.status(400).json({ error: 'Room not found' });
-            }
+            if (!roomsModule.roomExists(roomName)) return res.status(400).json({ error: 'Room not found' });
             roomsModule.deleteRoom(roomName);
             res.json({ success: true });
         });
     } else {
-        // Return disabled error if someone tries to call these endpoints
         app.post('/admin/api/rooms/create', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
         app.post('/admin/api/rooms/update-password', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
         app.post('/admin/api/rooms/delete', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
     }
 
-    // POST endpoints for admin actions (return JSON)
+    // POST endpoints for admin actions (unchanged)
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
@@ -841,7 +842,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
         const oldName = userMappings[userId].name;
-        const oldAvatar = userMappings[userId].avatar;
         userMappings[userId].name = newName;
         if (customAvatar && customAvatar.trim() !== '') {
             userMappings[userId].avatar = customAvatar.trim();
