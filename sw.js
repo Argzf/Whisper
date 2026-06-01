@@ -1,4 +1,4 @@
-const CACHE_NAME = 'whisper-room-v2'; // Increment version to force update
+const CACHE_NAME = 'whisper-room-v2';  // Version bumped to force update
 const urlsToCache = [
   '/chat',
   '/chat.html',
@@ -10,25 +10,29 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting(); // Activate new SW immediately
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
-        cacheNames.filter(name => name !== CACHE_NAME)
-          .map(name => caches.delete(name))
+        cacheNames.map(name => {
+          if (name !== CACHE_NAME) {
+            return caches.delete(name);
+          }
+        })
       );
     }).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', event => {
-  // Bypass cache for admin API calls and uploaded files – prevents stale data
   const url = event.request.url;
-  if (url.includes('/admin/') || url.includes('/uploads/') || url.includes('/socket.io/')) {
+
+  // Bypass cache for API, admin, and upload endpoints
+  if (url.includes('/api/') || url.includes('/admin/') || url.includes('/upload')) {
     event.respondWith(fetch(event.request));
     return;
   }
@@ -43,7 +47,7 @@ self.addEventListener('fetch', event => {
           if (event.request.mode === 'navigate') {
             return caches.match('/chat.html');
           }
-          return new Response('Offline – Whisper Room requires network connection.', {
+          return new Response('Offline – Whisper Room requires a network connection for chat.', {
             status: 503,
             statusText: 'Service Unavailable'
           });
