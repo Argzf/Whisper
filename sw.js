@@ -1,19 +1,27 @@
-const CACHE_NAME = 'whisper-room-v3';
+const CACHE_NAME = 'whisper-v2';
 const urlsToCache = [
-  '/chat',
+  '/',
   '/chat.html',
+  '/admin.html',
+  '/faq.html',
+  '/pp.html',
+  '/tos.html',
+  '/index.html',
+  '/manifest.json',
   '/favicon.svg',
-  '/manifest.json'
+  '/wr-banner.png'
 ];
 
+// Install event – cache core assets
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
-      .then(() => self.skipWaiting())
   );
+  self.skipWaiting();
 });
 
+// Activate event – clean up old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -24,60 +32,48 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    }).then(() => self.clients.claim())
+    })
   );
+  self.clients.claim();
 });
 
+// Fetch event – network-first for API, cache-first for static, bypass for clean URLs
 self.addEventListener('fetch', event => {
-  const url = event.request.url;
-  if (url.includes('/api/') || url.includes('/admin/') || url.includes('/upload')) {
+  const url = new URL(event.request.url);
+  const path = url.pathname;
+  
+  // ----- BYPASS FOR CLEAN URL REDIRECTS (let Express handle) -----
+  if (path === '/faq' || path === '/privacy-policy' || path === '/tos') {
     event.respondWith(fetch(event.request));
     return;
   }
+  
+  // ----- API, admin, upload – network only -----
+  if (path.includes('/api/') || path.includes('/admin') || path === '/upload') {
+    event.respondWith(fetch(event.request).catch(() => {
+      return new Response('Network error', { status: 503 });
+    }));
+    return;
+  }
+  
+  // ----- Static assets – cache first, fallback to network -----
   event.respondWith(
     caches.match(event.request)
-      .then(response => response || fetch(event.request))
-      .catch(() => {
-        if (event.request.mode === 'navigate') {
-          return caches.match('/chat.html');
+      .then(response => {
+        if (response) {
+          return response;
         }
-        return new Response('Offline – Whisper Room requires a network connection for chat.', {
-          status: 503,
-          statusText: 'Service Unavailable'
-        });
-      })
-  );
-});
-
-// NEW: Handle push notifications (if you decide to send them from server)
-self.addEventListener('push', event => {
-  let data = { title: 'Whisper', body: 'New message' };
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data.body = event.data.text();
-    }
-  }
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      vibrate: [200, 100, 200]
-    })
-  );
-});
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(windowClients => {
-        if (windowClients.length > 0) {
-          return windowClients[0].focus();
-        }
-        return clients.openWindow('/chat');
+        return fetch(event.request).then(
+          networkResponse => {
+            // Cache a copy of valid responses (not opaque)
+            if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME)
+                .then(cache => cache.put(event.request, responseToCache));
+            }
+            return networkResponse;
+          }
+        );
       })
   );
 });
