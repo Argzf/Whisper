@@ -258,6 +258,18 @@ io.on('connection', (socket) => {
     await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
   });
 
+  // ==================== TYPING INDICATOR (Anonymous) ====================
+socket.on('typing', () => {
+    // Broadcast anonymously to all other users
+    socket.broadcast.emit('user_typing');
+});
+
+socket.on('stop typing', () => {
+    // Broadcast anonymously to all other users
+    socket.broadcast.emit('user_stop_typing');
+});
+// ==================== END TYPING INDICATOR ====================
+
   // Room events (disabled, but keep stubs)
   if (ROOMS_ENABLED) {
     // full room logic would go here
