@@ -15,10 +15,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         return req.session && req.session.authenticated === true;
     }
 
-    // Helper to send JSON responses
-    function sendJson(res, success, message, data = {}) {
-        res.json({ success, message, ...data });
-    }
+    // FIX: Redirect /admin/login to /admin to avoid 404
+    app.get('/admin/login', (req, res) => {
+        res.redirect('/admin');
+    });
 
     app.get('/admin', (req, res) => {
         if (isAuthenticated(req)) {
@@ -49,7 +49,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     .message-card { transition: all 0.2s ease; }
                     .message-card:hover { background: rgba(51, 65, 85, 0.8); transform: translateX(2px); }
                     .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-                    /* Toast container */
                     #toast-container {
                         position: fixed;
                         bottom: 20px;
@@ -131,7 +130,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
                     <!-- Two Column Layout -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                        <!-- Recent Messages (fixed height, scrollable, auto-update) -->
+                        <!-- Recent Messages -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                             <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
                                 <h2 class="text-lg font-semibold text-white">📩・Recent Messages</h2>
@@ -164,7 +163,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             html += `</div>
                         </div>
 
-                        <!-- Users List (auto-update) -->
+                        <!-- Users List -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden card">
                             <div class="p-5 border-b border-gray-700/50 bg-gray-800/60">
                                 <h2 class="text-lg font-semibold text-white">👥・Active Users (<span id="usersCount">${userList.length}</span>)</h2>
@@ -188,7 +187,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
                     <!-- Action Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Broadcast -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
                             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">📢・Broadcast Message</h2>
                             <div class="space-y-3">
@@ -197,7 +195,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             </div>
                         </div>
 
-                        <!-- Merged Identity -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
                             <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">🔄・Change Identity</h2>
                             <div class="space-y-4">
@@ -217,7 +214,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             </div>
                         </div>
 
-                        <!-- Danger Zone -->
                         <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
                             <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
                             <div class="space-y-3">
@@ -229,7 +225,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 </div>
 
                 <script>
-                    // Toast function
                     function showToast(message, type = 'info') {
                         const container = document.getElementById('toast-container');
                         const toast = document.createElement('div');
@@ -242,15 +237,12 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }, 3000);
                     }
 
-                    // Dynamic welcome
                     const hour = new Date().getHours();
                     let greeting = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
                     document.getElementById('welcomeMessage').innerText = greeting + ', Admin.';
 
-                    // Socket.IO for real-time updates
                     const socket = io();
                     
-                    // Helper: refresh messages list and stats
                     function refreshMessagesUI() {
                         fetch('/admin/api/messages')
                             .then(res => res.json())
@@ -281,7 +273,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                                             </div>
                                         \`;
                                     }).join('');
-                                    // Re-attach delete handlers
                                     document.querySelectorAll('.delete-msg-btn').forEach(btn => {
                                         btn.addEventListener('click', async (e) => {
                                             const id = btn.getAttribute('data-id');
@@ -345,13 +336,11 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         });
                     }
                     
-                    // Socket events
                     socket.on('chat message', () => { refreshMessagesUI(); refreshStatsUI(); });
                     socket.on('message deleted', () => { refreshMessagesUI(); refreshStatsUI(); });
                     socket.on('messages purged', () => { refreshMessagesUI(); refreshStatsUI(); });
                     socket.on('force-reload-identity', () => { refreshUsersUI(); refreshMessagesUI(); refreshStatsUI(); });
                     
-                    // Broadcast
                     document.getElementById('sendBroadcastBtn').addEventListener('click', async () => {
                         const text = document.getElementById('broadcastText').value.trim();
                         if (!text) { showToast('Enter a broadcast message', 'error'); return; }
@@ -369,7 +358,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }
                     });
                     
-                    // Preset identity
                     document.getElementById('applyPresetBtn').addEventListener('click', async () => {
                         const userId = document.getElementById('identityUserId').value.trim();
                         const preset = document.getElementById('presetSelect').value;
@@ -388,7 +376,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }
                     });
                     
-                    // Custom identity
                     document.getElementById('applyCustomBtn').addEventListener('click', async () => {
                         const userId = document.getElementById('identityUserId').value.trim();
                         const customName = document.getElementById('customNameInput').value.trim();
@@ -407,7 +394,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }
                     });
                     
-                    // Purge messages
                     document.getElementById('purgeMessagesBtn').addEventListener('click', async () => {
                         if (!confirm('⚠️ Are you sure you want to purge ALL messages? This cannot be undone!')) return;
                         const res = await fetch('/admin/purge-messages', { method: 'POST' });
@@ -421,7 +407,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }
                     });
                     
-                    // Delete message handlers (delegation)
                     document.getElementById('messagesList').addEventListener('click', async (e) => {
                         const btn = e.target.closest('.delete-msg-btn');
                         if (!btn) return;
@@ -439,7 +424,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }
                     });
                     
-                    // Initial load
                     refreshMessagesUI();
                     refreshUsersUI();
                     refreshStatsUI();
@@ -448,7 +432,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             </html>`;
             res.send(html);
         } else {
-            // COMPLETE LOGIN PAGE - FIXED
             res.send(`<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -486,7 +469,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
     });
 
-    // --- API endpoints for real-time UI ---
+    // --- API endpoints ---
     app.get('/admin/api/messages', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const recent = messages.slice(-50).reverse();
@@ -506,7 +489,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ totalMessages: messages.length, totalUsers: userCount, recentMessages: recentCount });
     });
 
-    // Modify existing POST endpoints to return JSON
     app.post('/admin/broadcast', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
         const broadcastText = req.body.broadcastText?.trim();
@@ -614,7 +596,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"`);
         res.json({ success: true });
     });
-    
+
     app.get('/admin/logout', (req, res) => {
         req.session.destroy();
         res.redirect('/admin');
