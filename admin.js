@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const roomsModule = require('./rooms');
 
-function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog) {
+function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED = true) {
     function escapeHtml(str) {
         return str.replace(/[&<>]/g, (m) => {
             if (m === '&') return '&amp;';
@@ -257,12 +257,19 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     </div>
                 </div>
 
-                <!-- Room Management Card -->
-                <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card mb-8">
+                <!-- Room Management Card (conditionally disabled) -->
+                <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border ${ROOMS_ENABLED ? 'border-gray-700/50' : 'border-gray-600/50 bg-gray-800/20'} p-5 card mb-8">
                     <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-semibold text-white flex items-center gap-2">🏠・Rooms</h2>
-                        <button id="createRoomBtn" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm transition-colors shadow">+ New Room</button>
+                        <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+                            🏠・Rooms
+                            ${!ROOMS_ENABLED ? '<span class="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full">Inactive</span>' : ''}
+                        </h2>
+                        ${ROOMS_ENABLED ? 
+                            '<button id="createRoomBtn" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-sm transition-colors shadow">+ New Room</button>' : 
+                            '<button class="bg-gray-600 cursor-not-allowed px-3 py-1 rounded-lg text-sm opacity-50" disabled>+ New Room (Disabled)</button>'
+                        }
                     </div>
+                    ${ROOMS_ENABLED ? `
                     <div id="roomsList" class="space-y-2 max-h-64 overflow-y-auto">
                         ${Object.entries(allRooms).map(([name, room]) => `
                             <div class="bg-gray-800/60 rounded-lg p-3 flex justify-between items-center border border-gray-700/30" data-room-name="${name}">
@@ -277,6 +284,15 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             </div>
                         `).join('')}
                     </div>
+                    ` : `
+                    <div class="text-center py-8 text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto mb-2 opacity-50">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <p>Rooms feature is temporarily disabled.</p>
+                        <p class="text-xs mt-1">Check back later.</p>
+                    </div>
+                    `}
                 </div>
 
                 <!-- Danger Zone -->
@@ -500,7 +516,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     }
                 });
                 
-                // ----- Room Management Functions -----
+                ${ROOMS_ENABLED ? `
+                // ----- Room Management Functions (only when enabled) -----
                 function showCustomModal(title, message, showInput = false, showPassword = false, placeholder = '') {
                     return new Promise((resolve) => {
                         const modal = document.getElementById('customModal');
@@ -606,6 +623,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         }
                     });
                 });
+                ` : ''}
                 
                 // Initial loads
                 refreshMessagesUI();
@@ -637,47 +655,54 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ totalMessages: messages.length, totalUsers: userCount, recentMessages: recentCount });
     });
 
-    // Room management API endpoints
-    app.post('/admin/api/rooms/create', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const { roomName, password } = req.body;
-        if (!roomName || roomName.trim() === '') {
-            return res.status(400).json({ error: 'Room name is required' });
-        }
-        const sanitizedName = roomName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
-        if (roomsModule.roomExists(sanitizedName)) {
-            return res.status(400).json({ error: 'Room already exists' });
-        }
-        roomsModule.createRoom(sanitizedName, password || null);
-        
-        // Send room creation log to Discord
-        const roomLink = `${req.protocol}://${req.get('host')}/room/${sanitizedName}`;
-        if (sendRoomCreationLog) {
-            sendRoomCreationLog(sanitizedName, password || null, roomLink);
-        }
-        
-        res.json({ success: true });
-    });
+    // ========== ROOM API ENDPOINTS (only if enabled) ==========
+    if (ROOMS_ENABLED) {
+        app.post('/admin/api/rooms/create', (req, res) => {
+            if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+            const { roomName, password } = req.body;
+            if (!roomName || roomName.trim() === '') {
+                return res.status(400).json({ error: 'Room name is required' });
+            }
+            const sanitizedName = roomName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+            if (roomsModule.roomExists(sanitizedName)) {
+                return res.status(400).json({ error: 'Room already exists' });
+            }
+            roomsModule.createRoom(sanitizedName, password || null);
+            
+            // Send room creation log to Discord
+            const roomLink = `${req.protocol}://${req.get('host')}/room/${sanitizedName}`;
+            if (sendRoomCreationLog) {
+                sendRoomCreationLog(sanitizedName, password || null, roomLink);
+            }
+            
+            res.json({ success: true });
+        });
 
-    app.post('/admin/api/rooms/update-password', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const { roomName, password } = req.body;
-        if (!roomsModule.roomExists(roomName)) {
-            return res.status(400).json({ error: 'Room not found' });
-        }
-        roomsModule.updateRoomPassword(roomName, password || null);
-        res.json({ success: true });
-    });
+        app.post('/admin/api/rooms/update-password', (req, res) => {
+            if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+            const { roomName, password } = req.body;
+            if (!roomsModule.roomExists(roomName)) {
+                return res.status(400).json({ error: 'Room not found' });
+            }
+            roomsModule.updateRoomPassword(roomName, password || null);
+            res.json({ success: true });
+        });
 
-    app.post('/admin/api/rooms/delete', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const { roomName } = req.body;
-        if (!roomsModule.roomExists(roomName)) {
-            return res.status(400).json({ error: 'Room not found' });
-        }
-        roomsModule.deleteRoom(roomName);
-        res.json({ success: true });
-    });
+        app.post('/admin/api/rooms/delete', (req, res) => {
+            if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
+            const { roomName } = req.body;
+            if (!roomsModule.roomExists(roomName)) {
+                return res.status(400).json({ error: 'Room not found' });
+            }
+            roomsModule.deleteRoom(roomName);
+            res.json({ success: true });
+        });
+    } else {
+        // Return disabled error if someone tries to call these endpoints
+        app.post('/admin/api/rooms/create', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
+        app.post('/admin/api/rooms/update-password', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
+        app.post('/admin/api/rooms/delete', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
+    }
 
     // POST endpoints for admin actions (return JSON)
     app.post('/admin/login', (req, res) => {
