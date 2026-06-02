@@ -29,6 +29,8 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Markdown parser -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -115,7 +117,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 1rem;
-      padding-bottom: 70px;  /* Prevents overlap with input bar */
+      padding-bottom: 70px;
       -webkit-overflow-scrolling: touch;
     }
     .message:not(.own) .message-bubble {
@@ -135,6 +137,14 @@
       white-space: normal;
       transition: all 0.1s ease;
     }
+    /* Markdown styling */
+    .message-bubble strong { font-weight: 700; color: #facc15; }
+    .message-bubble em { font-style: italic; color: #c7d2fe; }
+    .message-bubble a { color: #818cf8; text-decoration: underline; }
+    .message-bubble code { background: #0f172a; padding: 2px 4px; border-radius: 6px; font-family: monospace; font-size: 0.9em; }
+    .message-bubble pre { background: #0f172a; padding: 8px; border-radius: 8px; overflow-x: auto; margin: 4px 0; }
+    .message-bubble h1, .message-bubble h2, .message-bubble h3 { font-weight: 600; margin: 0.5em 0 0.2em; }
+    .message-bubble ul, .message-bubble ol { margin: 0.3em 0 0.3em 1.5em; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: #818CF8; border-radius: 10px; }
@@ -450,33 +460,22 @@
       }
     });
 
-    // ==================== ANONYMOUS TYPING INDICATOR (FIXED) ====================
+    // ==================== ANONYMOUS TYPING INDICATOR ====================
     let typingTimer;
     let isTypingState = false;
 
     function emitTyping() {
-      // Send typing event on every input change
       socket.emit('typing');
-      
-      // Reset the stop timer
       if (typingTimer) clearTimeout(typingTimer);
-      if (!isTypingState) {
-        isTypingState = true;
-      }
+      if (!isTypingState) isTypingState = true;
       typingTimer = setTimeout(() => {
         socket.emit('stop typing');
         isTypingState = false;
       }, 2000);
     }
 
-    // Use 'input' event instead of 'keypress' – catches all changes (paste, backspace, etc.)
-    messageInput.addEventListener('input', () => {
-      emitTyping();
-    });
-    messageInput.addEventListener('focus', () => {
-      // When focusing, also trigger a typing event (useful if user starts typing after focusing)
-      emitTyping();
-    });
+    messageInput.addEventListener('input', () => emitTyping());
+    messageInput.addEventListener('focus', () => emitTyping());
     messageInput.addEventListener('blur', () => {
       if (typingTimer) clearTimeout(typingTimer);
       if (isTypingState) {
@@ -502,27 +501,13 @@
     });
     // ==================== END TYPING INDICATOR ====================
 
-    // ==================== SEND MESSAGE (FIXED) ====================
+    // ==================== SEND MESSAGE ====================
     function sendMessage() {
-      // Do not proceed if not ready or socket not connected
-      if (!isReady) {
-        console.warn("Not ready to send yet");
-        return;
-      }
+      if (!isReady) return;
       const text = messageInput.value.trim();
       if (!text) return;
-      
       requestNotificationPermissionSafe();
-      // Emit the message
-      socket.emit('chat message', { text, file: null }, (ack) => {
-        // Optional: server can acknowledge. If no ack, assume success.
-        // We clear input only after a successful send.
-        // But since our server does not send ack, we clear anyway.
-        // However, to avoid losing the message on failure, we could wait.
-        // For simplicity, we clear after emit – but if network fails, message is lost.
-        // Better: clear only if we know it was sent. Let's rely on socket being reliable.
-      });
-      // Clear input and refocus
+      socket.emit('chat message', { text, file: null });
       messageInput.value = '';
       messageInput.focus();
     }
@@ -535,6 +520,18 @@
       }
     });
     // ==================== END SEND MESSAGE ====================
+
+    // ==================== MARKDOWN RENDERING ====================
+    // Helper function to safely render markdown and open links in new tab
+    function renderMarkdown(text) {
+      if (!text) return '';
+      let html = marked.parse(text);
+      // Create a temporary div to manipulate links
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      tempDiv.querySelectorAll('a').forEach(a => a.setAttribute('target', '_blank'));
+      return tempDiv.innerHTML;
+    }
 
     function appendMessage(msg) {
       const isOwn = (msg.senderName === currentUserName);
@@ -558,6 +555,7 @@
       }
       const bubble = document.createElement('div');
       bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
+      
       if (msg.file) {
         if (msg.file.type && msg.file.type.startsWith('image/')) {
           const img = document.createElement('img');
@@ -575,12 +573,13 @@
         }
         if (msg.text) {
           const textDiv = document.createElement('div');
-          textDiv.innerText = msg.text;
+          textDiv.innerHTML = renderMarkdown(msg.text);
           bubble.appendChild(textDiv);
         }
       } else {
-        bubble.innerText = msg.text;
+        bubble.innerHTML = renderMarkdown(msg.text);
       }
+      
       contentWrapper.appendChild(bubble);
       if (!isOwn) {
         const timeSpan = document.createElement('div');
@@ -600,6 +599,7 @@
       messagesContainer.insertBefore(div, typingIndicator);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
+    // ==================== END MARKDOWN RENDERING ====================
 
     // ==================== Notifications ====================
     function requestNotificationPermissionSafe() {
