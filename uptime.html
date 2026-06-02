@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <meta name="theme-color" content="#1e293b">
+  <title>Whisper – Service Status</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 2rem;
+    }
+    .status-card {
+      transition: all 0.2s ease;
+    }
+    .status-card:hover {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.5rem;
+    }
+    .dot-up { background-color: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .dot-down { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .dot-checking { background-color: #eab308; animation: pulse 1s infinite; }
+    @keyframes pulse {
+      0% { opacity: 0.5; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1.2); }
+    }
+    .whisper-title {
+      font-family: 'Montserrat Alternates', 'Inter', sans-serif;
+    }
+    footer {
+      margin-top: auto;
+      background: rgba(10, 14, 23, 0.6);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .footer-link {
+      color: #a5b4fc;
+      text-decoration: none;
+      border-bottom: 1px dotted #a5b4fc;
+    }
+  </style>
+</head>
+<body>
+  <main class="flex-1 px-4 sm:px-6 py-8 sm:py-12 max-w-4xl mx-auto w-full">
+    <!-- Back link -->
+    <div class="mb-6">
+      <a href="/" class="inline-flex items-center gap-1 text-[#94a3b8] hover:text-white text-sm transition-colors bg-white/5 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/10">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to homepage
+      </a>
+    </div>
+
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <div class="inline-block mb-4">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 backdrop-blur-sm border border-white/10 flex items-center justify-center">
+          <svg class="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+      </div>
+      <h1 class="whisper-title text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent">
+        Service Status
+      </h1>
+      <p class="text-gray-400 text-sm mt-2">Real‑time health checks for all Whisper services</p>
+    </div>
+
+    <!-- Status cards grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8" id="status-grid">
+      <!-- Will be populated by JS -->
+      <div class="glass-card p-5 text-center text-gray-400">Loading status...</div>
+    </div>
+
+    <!-- Last updated + refresh button -->
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4">
+      <p class="text-gray-400 text-xs" id="last-updated">Last checked: –</p>
+      <button id="refresh-btn" class="bg-white/10 hover:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm text-white border border-white/20 transition-all">
+        ⟳ Refresh now
+      </button>
+    </div>
+
+    <!-- Info note -->
+    <div class="glass-card p-4 mt-10 text-center text-gray-400 text-xs">
+      ⚡ Checks are performed from your browser. A green dot means the service responded with HTTP 2xx/3xx.<br>
+      If something is down, please report it via Discord.
+    </div>
+  </main>
+
+  <footer class="py-5 px-4 text-center text-gray-400 text-xs sm:text-sm">
+    <div class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-3">
+      <a href="/tos" class="footer-link">Terms of Service</a>
+      <a href="/privacy-policy" class="footer-link">Privacy Policy</a>
+      <a href="/faq" class="footer-link">FAQ</a>
+    </div>
+    <div>Made with ☕ by <a href="https://github.com/Argzf" target="_blank" class="footer-link">Arsan</a> · © 2026 Whisper</div>
+  </footer>
+
+  <script>
+    // List of endpoints to check
+    const endpoints = [
+      { name: "Homepage", url: "/", description: "Landing page" },
+      { name: "Chat Room", url: "/chat", description: "Main chat interface" },
+      { name: "FAQ", url: "/faq", description: "Frequently Asked Questions" },
+      { name: "Terms of Service", url: "/tos", description: "TOS page" },
+      { name: "Privacy Policy", url: "/privacy-policy", description: "Privacy page" },
+      { name: "Admin Panel", url: "/admin", description: "Moderation dashboard (requires auth)" }
+    ];
+
+    let statuses = [];
+    const grid = document.getElementById("status-grid");
+    const lastUpdatedSpan = document.getElementById("last-updated");
+    const refreshBtn = document.getElementById("refresh-btn");
+
+    async function checkEndpoint(endpoint) {
+      const start = performance.now();
+      try {
+        const response = await fetch(endpoint.url, {
+          method: "HEAD",
+          cache: "no-cache",
+          timeout: 5000
+        });
+        const ok = response.ok || response.status < 400;
+        const duration = Math.round(performance.now() - start);
+        return {
+          ...endpoint,
+          status: ok ? "up" : "down",
+          statusCode: response.status,
+          responseTime: duration,
+          error: ok ? null : `HTTP ${response.status}`
+        };
+      } catch (err) {
+        const duration = Math.round(performance.now() - start);
+        return {
+          ...endpoint,
+          status: "down",
+          statusCode: null,
+          responseTime: duration,
+          error: err.message || "Network error"
+        };
+      }
+    }
+
+    async function checkAllEndpoints() {
+      // Show checking state on cards
+      renderStatuses(endpoints.map(e => ({ ...e, status: "checking" })));
+      const results = await Promise.all(endpoints.map(checkEndpoint));
+      statuses = results;
+      renderStatuses(results);
+      lastUpdatedSpan.innerText = `Last checked: ${new Date().toLocaleTimeString()}`;
+    }
+
+    function renderStatuses(statusList) {
+      grid.innerHTML = "";
+      for (const item of statusList) {
+        const dotClass = item.status === "up" ? "dot-up" : (item.status === "down" ? "dot-down" : "dot-checking");
+        const statusText = item.status === "up" ? "Operational" : (item.status === "down" ? "Down" : "Checking...");
+        const statusColor = item.status === "up" ? "text-green-400" : (item.status === "down" ? "text-red-400" : "text-yellow-400");
+        
+        let detail = "";
+        if (item.status === "up") {
+          detail = `<span class="text-gray-400 text-xs">${item.responseTime}ms · ${item.statusCode}</span>`;
+        } else if (item.status === "down" && item.error) {
+          detail = `<span class="text-red-300 text-xs">${item.error}</span>`;
+        } else if (item.status === "checking") {
+          detail = `<span class="text-yellow-300 text-xs">pinging...</span>`;
+        }
+
+        const card = document.createElement("div");
+        card.className = "glass-card p-5 status-card";
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <div class="flex items-center">
+                <span class="${dotClass} dot"></span>
+                <h3 class="text-white font-semibold text-lg">${item.name}</h3>
+              </div>
+              <p class="text-gray-400 text-xs mt-1">${item.description}</p>
+            </div>
+            <div class="text-right">
+              <span class="${statusColor} text-sm font-medium">${statusText}</span>
+            </div>
+          </div>
+          <div class="mt-3 text-right">
+            ${detail}
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    refreshBtn.addEventListener("click", () => {
+      checkAllEndpoints();
+    });
+
+    // Initial load
+    checkAllEndpoints();
+    // Auto-refresh every 60 seconds
+    setInterval(checkAllEndpoints, 60000);
+  </script>
+</body>
+</html>
