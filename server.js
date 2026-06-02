@@ -308,14 +308,15 @@ app.get('/tos', (req, res) => res.sendFile(path.join(__dirname, 'tos.html')));
 app.get('/faq.html', (req, res) => res.redirect(301, '/faq'));
 app.get('/pp.html', (req, res) => res.redirect(301, '/privacy-policy'));
 app.get('/tos.html', (req, res) => res.redirect(301, '/tos'));
-app.get('/uptime.html', (req, res) => res.redirect(301, '/status'));
 
-// Main chat routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, 'chat.html'));
+});
+app.get('/status', (req, res) => {
+    res.sendFile(path.join(__dirname, 'uptime.html'));
 });
 
 // Admin panel (external admin.js)
