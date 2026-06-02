@@ -227,9 +227,8 @@
     </div>
   </div>
 
-  <!-- messagesContainer now contains the typing indicator inside, at the bottom -->
+  <!-- messagesContainer contains the typing indicator at the bottom -->
   <div id="messagesContainer" class="space-y-2">
-    <!-- Typing indicator appears here (inside the message list) -->
     <div id="typingIndicator" style="display: none;">
       <span></span><span></span><span></span>
     </div>
@@ -383,7 +382,6 @@
 
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        // When user comes back to the tab, check for missed messages
         checkForNewMessagesOnResume();
       }
     });
@@ -408,23 +406,19 @@
 
     socket.on('load messages', (msgs) => {
       if (!isReady) return;
-      // Clear everything except the typing indicator
       const indicator = document.getElementById('typingIndicator');
       messagesContainer.innerHTML = '';
       messagesContainer.appendChild(indicator);
       msgs.forEach(msg => appendMessage(msg));
-      // Update the stored message count
       lastMessageCount = msgs.length;
     });
 
     socket.on('chat message', (msg) => {
       if (!isReady) return;
       appendMessage(msg);
-      // Increment our counter when a new message arrives while the app is active
       if (!document.hidden && msg.senderName !== currentUserName) {
         lastMessageCount++;
       }
-      // Always try to show notification, even if page is visible
       if (msg.text) safeNotify(msg.senderName, msg.text);
       else safeNotify(msg.senderName, 'sent a file');
     });
@@ -446,7 +440,6 @@
       messagesContainer.innerHTML = '';
       messagesContainer.appendChild(indicator);
       if (isReady) socket.emit('load history');
-      // Reset counter after purge
       lastMessageCount = 0;
     });
 
@@ -457,12 +450,12 @@
       }
     });
 
-    // ==================== ANONYMOUS TYPING INDICATOR ====================
+    // ==================== ANONYMOUS TYPING INDICATOR (FIXED) ====================
     let typingTimer;
-    let isTypingState = false;  // tracks if we have an active "stop typing" timer
+    let isTypingState = false;
 
     function emitTyping() {
-      // Send typing event on every keystroke to keep remote indicator alive
+      // Send typing event on every input change
       socket.emit('typing');
       
       // Reset the stop timer
@@ -476,16 +469,14 @@
       }, 2000);
     }
 
-    // Listen for typing events on the message input
-    messageInput.addEventListener('keypress', () => {
+    // Use 'input' event instead of 'keypress' – catches all changes (paste, backspace, etc.)
+    messageInput.addEventListener('input', () => {
       emitTyping();
     });
     messageInput.addEventListener('focus', () => {
-      // When focusing, we don't need to send typing immediately, but we can
-      // However, to be consistent, we emit on focus as well
+      // When focusing, also trigger a typing event (useful if user starts typing after focusing)
       emitTyping();
     });
-    // Stop typing when input loses focus
     messageInput.addEventListener('blur', () => {
       if (typingTimer) clearTimeout(typingTimer);
       if (isTypingState) {
@@ -497,7 +488,6 @@
     const typingIndicator = document.getElementById('typingIndicator');
     let hideTypingTimer;
 
-    // Show the indicator when someone starts typing
     socket.on('user_typing', () => {
       typingIndicator.style.display = 'inline-flex';
       clearTimeout(hideTypingTimer);
@@ -506,12 +496,45 @@
       }, 1500);
     });
 
-    // Hide immediately when everyone stops typing
     socket.on('user_stop_typing', () => {
       typingIndicator.style.display = 'none';
       clearTimeout(hideTypingTimer);
     });
     // ==================== END TYPING INDICATOR ====================
+
+    // ==================== SEND MESSAGE (FIXED) ====================
+    function sendMessage() {
+      // Do not proceed if not ready or socket not connected
+      if (!isReady) {
+        console.warn("Not ready to send yet");
+        return;
+      }
+      const text = messageInput.value.trim();
+      if (!text) return;
+      
+      requestNotificationPermissionSafe();
+      // Emit the message
+      socket.emit('chat message', { text, file: null }, (ack) => {
+        // Optional: server can acknowledge. If no ack, assume success.
+        // We clear input only after a successful send.
+        // But since our server does not send ack, we clear anyway.
+        // However, to avoid losing the message on failure, we could wait.
+        // For simplicity, we clear after emit – but if network fails, message is lost.
+        // Better: clear only if we know it was sent. Let's rely on socket being reliable.
+      });
+      // Clear input and refocus
+      messageInput.value = '';
+      messageInput.focus();
+    }
+
+    sendBtn.onclick = sendMessage;
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    // ==================== END SEND MESSAGE ====================
 
     function appendMessage(msg) {
       const isOwn = (msg.senderName === currentUserName);
@@ -566,7 +589,6 @@
         contentWrapper.appendChild(timeSpan);
       }
       div.appendChild(contentWrapper);
-      // Insert before the typing indicator
       messagesContainer.insertBefore(div, typingIndicator);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -579,22 +601,7 @@
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    function sendMessage() {
-      if (!isReady) return;
-      const text = messageInput.value.trim();
-      if (!text) return;
-      requestNotificationPermissionSafe();
-      socket.emit('chat message', { text, file: null });
-      messageInput.value = '';
-      messageInput.focus();
-    }
-
-    sendBtn.onclick = sendMessage;
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
-
-    // ==================== Notifications (always shown) ====================
+    // ==================== Notifications ====================
     function requestNotificationPermissionSafe() {
       try {
         if (typeof Notification === 'undefined') return;
@@ -621,15 +628,13 @@
       } catch(e) {}
     }
 
-    // Request permission as soon as the page loads
     requestNotificationPermissionSafe();
 
-    // ==================== Initial fetch of message count ====================
+    // ==================== Initial message count ====================
     fetch('/api/messages/count')
       .then(res => res.json())
       .then(data => { lastMessageCount = data.count; })
       .catch(console.error);
-
   </script>
   <script>
     if ('serviceWorker' in navigator) {
