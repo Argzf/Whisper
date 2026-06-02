@@ -32,6 +32,8 @@ if (!ADMIN_PASSCODE) {
     console.error('❌ Missing ADMIN_PASSCODE in .env');
     process.exit(1);
 }
+// NEW: Admin action log webhook (optional)
+const ADMIN_LOG_WEBHOOK = process.env.WH_ADMIN_LOGS || null;
 const PORT = process.env.PORT || 3000;
 
 // Helper to build absolute URL from request
@@ -178,9 +180,9 @@ async function sendToDiscord(name, avatar, text, file = null) {
     if (file) {
         if (file.type && file.type.startsWith('image/')) {
             embed.image = { url: file.url };
-            embed.description += `\n[️ View full size](${file.url})`;
+            embed.description += `\n[🖼️ View full size](${file.url})`;
         } else {
-            embed.description += `\n[${file.name}](${file.url})`;
+            embed.description += `\n📎 [${file.name}](${file.url})`;
         }
     }
     try {
@@ -268,7 +270,6 @@ io.on('connection', (socket) => {
     socket.on('chat message', async (data) => {
         if (!socket.userIdentity) return;
         const { name, avatar } = socket.userIdentity;
-        const clientIP = getClientIP(socket);
         const msg = {
             id: crypto.randomUUID(),
             text: data.text || '',
@@ -280,7 +281,7 @@ io.on('connection', (socket) => {
         messages.push(msg);
         if (messages.length > 500) messages.shift();
         io.emit('chat message', msg);
-        await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
+        await sendToDiscord(name, avatar, msg.text, msg.file);
     });
 
     // Room events (disabled, but keep stubs)
@@ -319,8 +320,8 @@ app.get('/status', (req, res) => {
     res.sendFile(path.join(__dirname, 'uptime.html'));
 });
 
-// Admin panel (external admin.js)
-setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED);
+// Admin panel (external admin.js) – now with ADMIN_LOG_WEBHOOK
+setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED, ADMIN_LOG_WEBHOOK);
 
 // ========== ERROR HANDLING ==========
 // 403 Forbidden
