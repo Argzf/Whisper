@@ -72,7 +72,7 @@ The design is minimal, the colors are calm, and the only goal is to let you **sp
 - **Privacy Policy** – [`/privacy-policy`](https://whisper.arsan.my/privacy-policy)
 - **FAQ** – [`/faq`](https://whisper.arsan.my/faq)
 
-## 📜 License
+### 📜 License
 
 This project is licensed under the **Proprietary Source‑Visible License (PSVL)**.  
 You may view, fork, and study the code for personal or educational purposes, but you may **not** copy, modify, distribute, or use substantial portions of the project for any commercial or production purpose without explicit written permission from the maintainer.
