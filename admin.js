@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const roomsModule = require('./rooms');
 
-function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED = true) {
+function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED = true, ADMIN_LOG_WEBHOOK = null) {
     function escapeHtml(str) {
         return str.replace(/[&<>]/g, (m) => {
             if (m === '&') return '&amp;';
@@ -14,6 +14,42 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
     function isAuthenticated(req) {
         return req.session && req.session.authenticated === true;
+    }
+
+    // Helper to get client IP from HTTP request
+    function getRequestIP(req) {
+        const forwarded = req.headers['x-forwarded-for'];
+        if (forwarded) return forwarded.split(',')[0].trim();
+        return req.socket.remoteAddress;
+    }
+
+    // Helper to send admin action logs to Discord
+    async function sendAdminLog(action, details, req) {
+        if (!ADMIN_LOG_WEBHOOK) return;
+        const ip = getRequestIP(req);
+        const embed = {
+            title: `🛡️ Admin Action: ${action}`,
+            color: 0x5865F2,
+            fields: [
+                { name: 'Action', value: action, inline: true },
+                { name: 'IP Address', value: ip, inline: true },
+                { name: 'Timestamp', value: new Date().toISOString(), inline: false }
+            ],
+            footer: { text: 'Whisper Room Admin Log' }
+        };
+        if (details) {
+            embed.fields.push({ name: 'Details', value: details, inline: false });
+        }
+        try {
+            await fetch(ADMIN_LOG_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embeds: [embed] })
+            });
+            console.log(`📢 Admin log sent: ${action}`);
+        } catch (err) {
+            console.error('Admin log webhook failed:', err.message);
+        }
     }
 
     // Redirect /admin/login to /admin to avoid 404
@@ -730,11 +766,13 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         app.post('/admin/api/rooms/delete', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
     }
 
-    // POST endpoints for admin actions (unchanged)
+    // POST endpoints for admin actions (with logging)
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
             req.session.authenticated = true;
+            // Log successful login
+            sendAdminLog('Login', 'Successful login to admin panel', req);
             res.redirect('/admin');
         } else {
             res.send(`<!DOCTYPE html>
@@ -794,9 +832,12 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 });
             }
         }
+        const purgedCount = messages.length;
         messages.length = 0;
         io.emit('messages purged');
         console.log('🧹 Admin purged all messages');
+        // Log purge action
+        sendAdminLog('Purge Messages', `Purged ${purgedCount} messages`, req);
         res.json({ success: true });
     });
 
@@ -817,6 +858,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         const existing = Object.entries(userMappings).find(([id, data]) => data.name === newIdentity.name && id !== userId);
         if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
+        const oldName = userMappings[userId].name;
+        const oldAvatar = userMappings[userId].avatar;
         userMappings[userId] = { name: newIdentity.name, avatar: newIdentity.avatar };
         saveUserMappings();
 
@@ -826,6 +869,9 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
 
         io.emit('force-reload-identity', { userId });
+        // Log identity change
+        const details = `User ID: ${userId}\nOld: ${oldName} (${oldAvatar})\nNew: ${newIdentity.name} (${newIdentity.avatar})`;
+        sendAdminLog('Identity Change (Preset)', details, req);
         res.json({ success: true });
     });
 
@@ -842,9 +888,12 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
 
         const oldName = userMappings[userId].name;
+        const oldAvatar = userMappings[userId].avatar;
         userMappings[userId].name = newName;
+        let avatarChanged = false;
         if (customAvatar && customAvatar.trim() !== '') {
             userMappings[userId].avatar = customAvatar.trim();
+            avatarChanged = true;
         }
         saveUserMappings();
 
@@ -858,7 +907,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
 
         io.emit('force-reload-identity', { userId });
-        console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"${customAvatar ? ' and avatar' : ''}`);
+        // Log custom identity change
+        const details = `User ID: ${userId}\nOld: ${oldName} (${oldAvatar})\nNew: ${newName}${avatarChanged ? ` (${customAvatar.trim()})` : ` (avatar unchanged)`}`;
+        sendAdminLog('Identity Change (Custom)', details, req);
+        console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"${avatarChanged ? ' and avatar' : ''}`);
         res.json({ success: true });
     });
 
