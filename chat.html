@@ -115,6 +115,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 1rem;
+      padding-bottom: 70px;  /* Prevents overlap with input bar */
       -webkit-overflow-scrolling: touch;
     }
     .message:not(.own) .message-bubble {
@@ -144,6 +145,8 @@
       border-top: 1px solid rgba(255, 255, 255, 0.15);
       padding: 0.75rem;
       flex-shrink: 0;
+      position: relative;
+      z-index: 10;
     }
     input {
       background: rgba(0, 0, 0, 0.5) !important;
@@ -456,34 +459,39 @@
 
     // ==================== ANONYMOUS TYPING INDICATOR ====================
     let typingTimer;
-    let isTyping = false;
+    let isTypingState = false;  // tracks if we have an active "stop typing" timer
 
     function emitTyping() {
-        if (!isTyping) {
-            isTyping = true;
-            socket.emit('typing');
-        }
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => {
-            socket.emit('stop typing');
-            isTyping = false;
-        }, 2000);
+      // Send typing event on every keystroke to keep remote indicator alive
+      socket.emit('typing');
+      
+      // Reset the stop timer
+      if (typingTimer) clearTimeout(typingTimer);
+      if (!isTypingState) {
+        isTypingState = true;
+      }
+      typingTimer = setTimeout(() => {
+        socket.emit('stop typing');
+        isTypingState = false;
+      }, 2000);
     }
 
     // Listen for typing events on the message input
     messageInput.addEventListener('keypress', () => {
-        emitTyping();
+      emitTyping();
     });
     messageInput.addEventListener('focus', () => {
-        emitTyping();
+      // When focusing, we don't need to send typing immediately, but we can
+      // However, to be consistent, we emit on focus as well
+      emitTyping();
     });
     // Stop typing when input loses focus
     messageInput.addEventListener('blur', () => {
-        clearTimeout(typingTimer);
-        if (isTyping) {
-            socket.emit('stop typing');
-            isTyping = false;
-        }
+      if (typingTimer) clearTimeout(typingTimer);
+      if (isTypingState) {
+        socket.emit('stop typing');
+        isTypingState = false;
+      }
     });
 
     const typingIndicator = document.getElementById('typingIndicator');
@@ -491,17 +499,17 @@
 
     // Show the indicator when someone starts typing
     socket.on('user_typing', () => {
-        typingIndicator.style.display = 'inline-flex';
-        clearTimeout(hideTypingTimer);
-        hideTypingTimer = setTimeout(() => {
-            typingIndicator.style.display = 'none';
-        }, 1500);
+      typingIndicator.style.display = 'inline-flex';
+      clearTimeout(hideTypingTimer);
+      hideTypingTimer = setTimeout(() => {
+        typingIndicator.style.display = 'none';
+      }, 1500);
     });
 
-    // Optionally hide immediately when everyone stops typing
+    // Hide immediately when everyone stops typing
     socket.on('user_stop_typing', () => {
-        typingIndicator.style.display = 'none';
-        clearTimeout(hideTypingTimer);
+      typingIndicator.style.display = 'none';
+      clearTimeout(hideTypingTimer);
     });
     // ==================== END TYPING INDICATOR ====================
 
