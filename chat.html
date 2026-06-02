@@ -1,628 +1,688 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <meta name="theme-color" content="#1e293b">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Whisper</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* ========== GLOBAL RESET & DARK THEME ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  <title>Whisper</title>
-  <meta name="title" content="Whisper">
-  <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #0f172a;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: #f1f5f9;
+        }
 
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="whisper.arsan.my">
-  <meta property="og:title" content="Whisper">
-  <meta property="og:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
-  <meta property="og:image" content="/wr-banner.png">
+        /* ========== HEADER ========== */
+        .chat-header {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 10;
+        }
 
-  <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="whisper.arsan.my">
-  <meta property="twitter:title" content="Whisper">
-  <meta property="twitter:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
-  <meta property="twitter:image" content="/wr-banner.png">
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
 
-  <!-- Montserrat Alternates font -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;600;700&display=swap" rel="stylesheet">
+        .logo-icon {
+            font-size: 1.8rem;
+            filter: drop-shadow(0 0 5px rgba(165, 180, 252, 0.5));
+        }
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+        .logo-text {
+            font-weight: 700;
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, #a5b4fc, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
 
-    /* Custom header styles */
-    .chat-header {
-      background: transparent;
-      backdrop-filter: none;
-      border-bottom: none;
-      padding: 0;
-    }
-    .whisper-banner {
-      background: rgba(10, 14, 23, 0.65);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 0.9rem 1.5rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    .banner-container {
-      max-width: 1400px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .bubble-icon {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-    }
-    .bubble-icon svg {
-      width: 18px;
-      height: 18px;
-      stroke: white;
-      stroke-width: 1.8;
-    }
-    .wordmark {
-      font-family: 'Montserrat Alternates', system-ui, -apple-system, sans-serif;
-      font-size: 1.55rem;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-      background: linear-gradient(135deg, #ffffff, #c7d2fe);
-      background-clip: text;
-      -webkit-background-clip: text;
-      color: transparent;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    .tagline {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      background: rgba(255, 255, 255, 0.05);
-      padding: 0.2rem 0.6rem;
-      border-radius: 40px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    @media (max-width: 640px) {
-      .whisper-banner { padding: 0.7rem 1rem; }
-      .wordmark { font-size: 1.25rem; }
-      .bubble-icon { width: 28px; height: 28px; }
-      .bubble-icon svg { width: 15px; height: 15px; }
-      .tagline { font-size: 0.65rem; }
-    }
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
 
-    /* Chat styles */
-    #messagesContainer {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-      -webkit-overflow-scrolling: touch;
-    }
-    .message:not(.own) .message-bubble {
-      background: rgba(30, 41, 59, 0.7);
-      backdrop-filter: blur(4px);
-      color: #f1f5f9;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .own .message-bubble {
-      background: rgba(99, 102, 241, 0.8);
-      backdrop-filter: blur(4px);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .message-bubble {
-      word-break: break-word;
-      white-space: normal;
-      transition: all 0.1s ease;
-    }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb { background: #818CF8; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #A5B4FC; }
-    .input-container {
-      background: rgba(0, 0, 0, 0.2);
-      backdrop-filter: blur(8px);
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 0.75rem;
-      flex-shrink: 0;
-    }
-    input {
-      background: rgba(0, 0, 0, 0.5) !important;
-      border-color: rgba(255, 255, 255, 0.2) !important;
-      color: white !important;
-    }
-    input:focus {
-      outline: none;
-      ring: 2px solid #A5B4FC;
-      border-color: #A5B4FC !important;
-    }
-    .send-btn {
-      background: linear-gradient(135deg, #4f46e5, #6366f1);
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .send-btn:hover {
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      transform: scale(0.98);
-    }
-    .send-icon {
-      width: 18px;
-      height: 18px;
-      stroke: white;
-      stroke-width: 2;
-    }
-    .text-gray-400 { color: #cbd5e1 !important; }
-    .text-gray-500 { color: #94a3b8 !important; }
-    .text-gray-300 { color: #e2e8f0 !important; }
-    .text-white { color: #ffffff !important; }
+        .user-badge {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 40px;
+            padding: 0.4rem 1rem 0.4rem 0.7rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
 
-    /* Typing Indicator Styles */
-.typing-indicator {
-    background: rgba(30, 41, 59, 0.7);
-    backdrop-filter: blur(8px);
-    border-radius: 20px;
-    padding: 8px 16px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0.5rem auto 0.5rem 1rem;
-    width: fit-content;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-.typing-indicator span {
-    width: 8px;
-    height: 8px;
-    background: #a5b4fc;
-    border-radius: 50%;
-    display: inline-block;
-    animation: bounce 1.4s infinite ease-in-out both;
-}
-.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-@keyframes bounce {
-    0%, 80%, 100% { transform: scale(0); }
-    40% { transform: scale(1); }
-}
-  </style>
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .user-name {
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        /* ========== MESSAGES CONTAINER ========== */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            scroll-behavior: smooth;
+        }
+
+        /* Custom scrollbar */
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .messages-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
+        }
+
+        /* ========== MESSAGE BUBBLES ========== */
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 85%;
+            animation: fadeInUp 0.2s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+
+        .message-content {
+            background: rgba(51, 65, 85, 0.6);
+            backdrop-filter: blur(4px);
+            border-radius: 20px;
+            padding: 0.6rem 1rem;
+            word-wrap: break-word;
+            word-break: break-word;
+            line-height: 1.4;
+            font-size: 0.95rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-info {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 4px;
+            font-size: 0.75rem;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            color: #a5b4fc;
+        }
+
+        .message-time {
+            color: #94a3b8;
+            font-size: 0.7rem;
+        }
+
+        .message-text {
+            color: #f1f5f9;
+        }
+
+        .message-text a {
+            color: #818cf8;
+            text-decoration: none;
+        }
+        .message-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* File attachments */
+        .file-attachment {
+            margin-top: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+        .file-attachment i {
+            font-size: 1rem;
+        }
+        .file-attachment:hover {
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+        }
+
+        .file-preview-image {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 12px;
+            margin-top: 6px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* ========== TYPING INDICATOR – Styled as a message bubble ========== */
+        .typing-message {
+            background: rgba(30, 41, 59, 0.8) !important;
+            backdrop-filter: blur(8px);
+            justify-content: flex-start !important;
+            margin: 0.5rem 0 !important;
+            max-width: 85%;
+        }
+
+        .typing-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 0;
+        }
+
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            background: #a5b4fc;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* ========== INPUT AREA ========== */
+        .input-container {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.5rem;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background: rgba(51, 65, 85, 0.6);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .input-wrapper:focus-within {
+            border-color: #818cf8;
+            background: rgba(51, 65, 85, 0.8);
+        }
+
+        #messageInput {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 0.8rem 1.2rem;
+            color: #f1f5f9;
+            font-size: 0.95rem;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            max-height: 120px;
+        }
+
+        #messageInput::placeholder {
+            color: #94a3b8;
+        }
+
+        .file-button {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0 12px;
+            font-size: 1.2rem;
+            transition: 0.2s;
+        }
+        .file-button:hover {
+            color: #a5b4fc;
+        }
+
+        .send-button {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border: none;
+            border-radius: 28px;
+            padding: 0.8rem 1.8rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+        .send-button:hover {
+            transform: scale(1.02);
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        }
+
+        /* Upload progress */
+        .upload-progress {
+            position: fixed;
+            bottom: 90px;
+            left: 20px;
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 20;
+            border-left: 3px solid #818cf8;
+        }
+        .upload-progress i {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .message {
+                max-width: 95%;
+            }
+            .user-name {
+                display: none;
+            }
+            .send-button {
+                padding: 0.8rem 1.2rem;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="chat-header">
-    <div class="whisper-banner">
-      <div class="banner-container">
-        <div class="brand">
-          <div class="bubble-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-          </div>
-          <span class="wordmark">Whisper</span>
+
+    <div class="chat-header">
+        <div class="logo-area">
+            <i class="fas fa-feather-alt logo-icon" style="color:#a5b4fc"></i>
+            <span class="logo-text">Whisper</span>
         </div>
-        <div class="tagline">Anonymous · Instant</div>
-      </div>
+        <div class="header-actions">
+            <div class="user-badge" id="userBadge">
+                <img class="user-avatar" id="userAvatar" src="" alt="avatar">
+                <span class="user-name" id="userName"></span>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div id="messagesContainer" class="space-y-2"></div>
-
-  <!-- Anonymous Typing Indicator -->
-<div id="typingIndicator" class="typing-indicator" style="display: none;">
-    <span></span><span></span><span></span>
-</div>
-
-  
-  <div class="input-container">
-    <div class="flex gap-2 max-w-3xl mx-auto">
-      <button id="emojiBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">😊</button>
-      <button id="attachBtn" class="text-2xl text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 w-10 h-10 rounded-full">📎</button>
-      <input type="text" id="messageInput" placeholder="Type Anything..." autocomplete="off"
-             class="flex-1 px-4 py-3 rounded-xl bg-gray-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-400 text-white">
-      <button id="sendBtn" class="send-btn px-6 py-3 rounded-xl font-medium shadow-lg text-white">
-        <span class="hidden sm:inline">Send</span>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="send-icon">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="16" x2="12" y2="8"></line>
-          <polyline points="8 12 12 8 16 12"></polyline>
-        </svg>
-      </button>
+    <div class="messages-container" id="messagesContainer">
+        <div id="messages">
+            <!-- Messages will appear here -->
+            <!-- Typing indicator (appears as a message) -->
+            <div id="typingIndicator" class="message typing-message" style="display: none;">
+                <div class="message-content">
+                    <div class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Progress bar container (hidden by default) -->
-  <div id="uploadProgressContainer" class="hidden fixed bottom-24 left-4 right-4 bg-gray-800/90 backdrop-blur-sm rounded-xl p-3 shadow-lg z-50 max-w-md mx-auto">
-    <div class="flex justify-between items-center mb-2">
-      <span class="text-sm text-white">Uploading...</span>
-      <button id="cancelUploadBtn" class="text-red-400 text-sm">Cancel</button>
+    <div class="input-container">
+        <div class="input-wrapper">
+            <button class="file-button" id="fileButton">
+                <i class="fas fa-paperclip"></i>
+            </button>
+            <textarea id="messageInput" placeholder="Anonymous whisper..." rows="1"></textarea>
+            <input type="file" id="fileInput" style="display: none;" accept="image/*,application/pdf,text/plain,.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov">
+        </div>
+        <button class="send-button" id="sendButton">
+            <i class="fas fa-paper-plane"></i> Send
+        </button>
     </div>
-    <div class="w-full bg-gray-700 rounded-full h-2">
-      <div id="uploadProgressBar" class="bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
+
+    <div id="uploadProgress" class="upload-progress" style="display: none;">
+        <i class="fas fa-spinner"></i>
+        <span>Uploading...</span>
+        <button id="cancelUpload" style="background:none;border:none;color:#f87171;cursor:pointer;">Cancel</button>
     </div>
-  </div>
 
-  <input type="file" id="fileInput" class="hidden" accept="image/*,video/*,application/pdf,text/plain,application/zip">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // ========== Socket Connection ==========
+        const socket = io();
 
-  <script>
-    // ==================== DOM elements ====================
-    const socket = io();
-    const messagesContainer = document.getElementById('messagesContainer');
-    const messageInput = document.getElementById('messageInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const emojiBtn = document.getElementById('emojiBtn');
-    const attachBtn = document.getElementById('attachBtn');
-    const fileInput = document.getElementById('fileInput');
-    const uploadProgressContainer = document.getElementById('uploadProgressContainer');
-    const uploadProgressBar = document.getElementById('uploadProgressBar');
-    const cancelUploadBtn = document.getElementById('cancelUploadBtn');
+        // DOM Elements
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const fileButton = document.getElementById('fileButton');
+        const fileInput = document.getElementById('fileInput');
+        const uploadProgressDiv = document.getElementById('uploadProgress');
+        const cancelUploadBtn = document.getElementById('cancelUpload');
+        const messagesContainer = document.getElementById('messagesContainer');
 
-    let currentUserName = null;
-    let isReady = false;
-    let currentXhr = null;
-    let notificationsEnabled = false;
+        // User identity
+        let currentUserId = localStorage.getItem('whisper_user_id');
+        let currentUserName = '';
+        let currentUserAvatar = '';
 
-    // ==================== CATCH‑UP NOTIFICATION VARIABLES ====================
-    let lastMessageCount = 0;
+        // Upload abort controller
+        let currentUploadController = null;
 
-    // ==================== Emoji picker ====================
-    const emojis = ['😀','😃','😄','😁','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠'];
-    function buildEmojiPicker() {
-      const picker = document.createElement('div');
-      picker.id = 'emojiPicker';
-      picker.className = 'fixed bottom-20 left-4 right-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-2 hidden grid grid-cols-6 gap-1 max-h-48 overflow-y-auto z-50';
-      for (let em of emojis.slice(0, 70)) {
-        const span = document.createElement('span');
-        span.textContent = em;
-        span.className = 'text-2xl text-center cursor-pointer p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded';
-        span.onclick = () => {
-          messageInput.value += em;
-          messageInput.focus();
-          picker.classList.add('hidden');
-        };
-        picker.appendChild(span);
-      }
-      document.body.appendChild(picker);
-      emojiBtn.onclick = (e) => { e.stopPropagation(); picker.classList.toggle('hidden'); };
-      document.addEventListener('click', (e) => { if (!picker.contains(e.target) && e.target !== emojiBtn) picker.classList.add('hidden'); });
-    }
-    buildEmojiPicker();
-
-    // ==================== File upload ====================
-    attachBtn.onclick = () => fileInput.click();
-
-    function uploadFile(file) {
-      return new Promise((resolve, reject) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        const xhr = new XMLHttpRequest();
-        currentXhr = xhr;
-        uploadProgressContainer.classList.remove('hidden');
-        uploadProgressBar.style.width = '0%';
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = (e.loaded / e.total) * 100;
-            uploadProgressBar.style.width = percent + '%';
-          }
+        // ========== Identity ==========
+        socket.emit('identify', currentUserId, (response) => {
+            currentUserId = response.userId;
+            currentUserName = response.name;
+            currentUserAvatar = response.avatar;
+            localStorage.setItem('whisper_user_id', currentUserId);
+            document.getElementById('userName').innerText = currentUserName;
+            document.getElementById('userAvatar').src = currentUserAvatar;
         });
-        xhr.onload = () => {
-          currentXhr = null;
-          uploadProgressContainer.classList.add('hidden');
-          if (xhr.status === 200) {
-            resolve(JSON.parse(xhr.responseText));
-          } else {
-            reject(new Error('Upload failed'));
-          }
-        };
-        xhr.onerror = () => {
-          currentXhr = null;
-          uploadProgressContainer.classList.add('hidden');
-          reject(new Error('Network error'));
-        };
-        xhr.open('POST', '/upload', true);
-        xhr.send(formData);
-      });
-    }
 
-    cancelUploadBtn.onclick = () => {
-      if (currentXhr) {
-        currentXhr.abort();
-        currentXhr = null;
-        uploadProgressContainer.classList.add('hidden');
-        alert('Upload cancelled');
-      }
-    };
-
-    fileInput.onchange = async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      fileInput.value = '';
-      try {
-        const { url, name, type } = await uploadFile(file);
-        socket.emit('chat message', { text: '', file: { url, name, type } });
-      } catch (err) {
-        console.error(err);
-        alert('Upload failed');
-      }
-    };
-
-    // ==================== Core chat ====================
-    let storedId = localStorage.getItem('whisper_user_id');
-    socket.emit('identify', storedId, (data) => {
-      currentUserName = data.name;
-      localStorage.setItem('whisper_user_id', data.userId);
-      isReady = true;
-      socket.emit('load history');
-    });
-
-    function refreshMessages() {
-      if (!isReady) return;
-      socket.emit('load history');
-    }
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        // When user comes back to the tab, check for missed messages
-        checkForNewMessagesOnResume();
-      }
-    });
-
-    async function checkForNewMessagesOnResume() {
-      try {
-        const res = await fetch('/api/messages/count');
-        const data = await res.json();
-        if (data.count > lastMessageCount) {
-          const newCount = data.count - lastMessageCount;
-          safeNotify('Whisper', `${newCount} new message${newCount > 1 ? 's' : ''} while you were away`);
-          lastMessageCount = data.count;
-        }
-      } catch (err) {
-        console.error('Failed to fetch message count:', err);
-      }
-    }
-
-    socket.on('connect', () => {
-      if (isReady) refreshMessages();
-    });
-
-    socket.on('load messages', (msgs) => {
-      if (!isReady) return;
-      messagesContainer.innerHTML = '';
-      msgs.forEach(msg => appendMessage(msg));
-      // Update the stored message count
-      lastMessageCount = msgs.length;
-    });
-
-    socket.on('chat message', (msg) => {
-      if (!isReady) return;
-      appendMessage(msg);
-      // Increment our counter when a new message arrives while the app is active
-      if (!document.hidden && msg.senderName !== currentUserName) {
-        lastMessageCount++;
-      }
-      // Always try to show notification, even if page is visible
-      if (msg.text) safeNotify(msg.senderName, msg.text);
-      else safeNotify(msg.senderName, 'sent a file');
-    });
-
-    socket.on('system message', (data) => {
-      if (!isReady) return;
-      console.log('📢 Broadcast received:', data.text);
-      appendSystemMessage(data.text);
-      safeNotify('📢 System', data.text);
-    });
-
-    socket.on('message deleted', (data) => {
-      const msgDiv = document.querySelector(`[data-message-id="${data.id}"]`);
-      if (msgDiv) msgDiv.remove();
-    });
-
-    socket.on('messages purged', () => {
-      messagesContainer.innerHTML = '';
-      if (isReady) socket.emit('load history');
-      // Reset counter after purge
-      lastMessageCount = 0;
-    });
-
-    socket.on('force-reload-identity', (data) => {
-      if (data.userId === localStorage.getItem('whisper_user_id')) {
-        console.log('🔄 Identity changed by admin, reloading chat...');
-        window.location.reload();
-      }
-    });
-
-    // ==================== ANONYMOUS TYPING INDICATOR ====================
-let typingTimer;
-let isTyping = false;
-
-function emitTyping() {
-    if (!isTyping) {
-        isTyping = true;
-        socket.emit('typing');
-    }
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => {
-        socket.emit('stop typing');
-        isTyping = false;
-    }, 2000);
-}
-
-// Listen for typing events on the message input
-messageInput.addEventListener('keypress', () => {
-    emitTyping();
-});
-messageInput.addEventListener('focus', () => {
-    emitTyping();
-});
-// Stop typing when input loses focus
-messageInput.addEventListener('blur', () => {
-    clearTimeout(typingTimer);
-    if (isTyping) {
-        socket.emit('stop typing');
-        isTyping = false;
-    }
-});
-
-const typingIndicator = document.getElementById('typingIndicator');
-let hideTypingTimer;
-
-// Show the indicator when someone starts typing
-socket.on('user_typing', () => {
-    typingIndicator.style.display = 'inline-flex';
-    clearTimeout(hideTypingTimer);
-    hideTypingTimer = setTimeout(() => {
-        typingIndicator.style.display = 'none';
-    }, 1500);
-});
-
-// Optionally hide immediately when everyone stops typing
-socket.on('user_stop_typing', () => {
-    typingIndicator.style.display = 'none';
-    clearTimeout(hideTypingTimer);
-});
-// ==================== END TYPING INDICATOR ====================
-
-    function appendMessage(msg) {
-      const isOwn = (msg.senderName === currentUserName);
-      const div = document.createElement('div');
-      div.setAttribute('data-message-id', msg.id);
-      div.className = `flex ${isOwn ? 'justify-end' : 'justify-start'} items-start gap-3`;
-      if (!isOwn) {
-        const avatarImg = document.createElement('img');
-        avatarImg.src = msg.senderAvatar;
-        avatarImg.className = 'w-8 h-8 rounded-full object-cover flex-shrink-0 mt-1';
-        avatarImg.alt = msg.senderName;
-        div.appendChild(avatarImg);
-      }
-      const contentWrapper = document.createElement('div');
-      contentWrapper.className = `max-w-[85%] sm:max-w-[32rem] ${isOwn ? 'text-right' : 'text-left'}`;
-      if (!isOwn) {
-        const nameSpan = document.createElement('div');
-        nameSpan.className = 'text-xs text-gray-400 mb-0.5';
-        nameSpan.innerText = msg.senderName;
-        contentWrapper.appendChild(nameSpan);
-      }
-      const bubble = document.createElement('div');
-      bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
-      if (msg.file) {
-        if (msg.file.type && msg.file.type.startsWith('image/')) {
-          const img = document.createElement('img');
-          img.src = msg.file.url;
-          img.className = 'max-w-full rounded max-h-40 cursor-pointer';
-          img.onclick = () => window.open(msg.file.url);
-          bubble.appendChild(img);
-        } else {
-          const link = document.createElement('a');
-          link.href = msg.file.url;
-          link.textContent = `📎 ${msg.file.name}`;
-          link.target = '_blank';
-          link.className = 'underline text-inherit';
-          bubble.appendChild(link);
-        }
-        if (msg.text) {
-          const textDiv = document.createElement('div');
-          textDiv.innerText = msg.text;
-          bubble.appendChild(textDiv);
-        }
-      } else {
-        bubble.innerText = msg.text;
-      }
-      contentWrapper.appendChild(bubble);
-      if (!isOwn) {
-        const timeSpan = document.createElement('div');
-        timeSpan.className = 'text-[10px] mt-1 text-gray-500';
-        timeSpan.innerText = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '';
-        contentWrapper.appendChild(timeSpan);
-      }
-      div.appendChild(contentWrapper);
-      messagesContainer.appendChild(div);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    function appendSystemMessage(text) {
-      const div = document.createElement('div');
-      div.className = 'text-center text-xs text-gray-400 bg-gray-800/50 rounded-full px-3 py-1 w-fit mx-auto my-1';
-      div.innerText = text;
-      messagesContainer.appendChild(div);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    function sendMessage() {
-      if (!isReady) return;
-      const text = messageInput.value.trim();
-      if (!text) return;
-      requestNotificationPermissionSafe();
-      socket.emit('chat message', { text, file: null });
-      messageInput.value = '';
-      messageInput.focus();
-    }
-
-    sendBtn.onclick = sendMessage;
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
-
-    // ==================== Notifications (always shown) ====================
-    function requestNotificationPermissionSafe() {
-      try {
-        if (typeof Notification === 'undefined') return;
-        if (Notification.permission === 'granted') {
-          notificationsEnabled = true;
-        } else if (Notification.permission !== 'denied' && !notificationsEnabled) {
-          Notification.requestPermission().then(perm => {
-            notificationsEnabled = (perm === 'granted');
-          }).catch(() => {});
-        }
-      } catch(e) {}
-    }
-
-    function safeNotify(senderName, messageText) {
-      try {
-        if (typeof Notification === 'undefined') return;
-        if (!notificationsEnabled) return;
-        if (senderName === currentUserName) return;
-        new Notification(`💬 ${senderName}`, {
-          body: messageText.length > 100 ? messageText.slice(0,100)+'…' : messageText,
-          icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="%236366f1"%3E%3Cpath stroke-linecap="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/%3E%3C/svg%3E',
-          silent: false,
+        // ========== Load History ==========
+        socket.emit('load history');
+        socket.on('load messages', (messages) => {
+            messagesDiv.innerHTML = '';
+            // Add the typing indicator back after clearing
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                messagesDiv.appendChild(typingIndicator);
+            }
+            messages.forEach(msg => appendMessage(msg));
+            scrollToBottom();
         });
-      } catch(e) {}
-    }
 
-    // Request permission as soon as the page loads
-    requestNotificationPermissionSafe();
+        // ========== Append Message ==========
+        function appendMessage(msg) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            
+            // Avatar
+            const avatarImg = document.createElement('img');
+            avatarImg.src = msg.senderAvatar;
+            avatarImg.className = 'message-avatar';
+            avatarImg.alt = msg.senderName;
+            
+            // Content wrapper
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            // Info row
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'message-info';
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'message-sender';
+            senderSpan.innerText = msg.senderName;
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'message-time';
+            const date = new Date(msg.timestamp);
+            timeSpan.innerText = date.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' });
+            infoDiv.appendChild(senderSpan);
+            infoDiv.appendChild(timeSpan);
+            
+            // Text
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text';
+            
+            if (msg.text) {
+                // Basic URL linking
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                textDiv.innerHTML = msg.text.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+            }
+            
+            contentDiv.appendChild(infoDiv);
+            contentDiv.appendChild(textDiv);
+            
+            // Handle file attachment
+            if (msg.file) {
+                const file = msg.file;
+                if (file.type && file.type.startsWith('image/')) {
+                    const img = document.createElement('img');
+                    img.src = file.url;
+                    img.className = 'file-preview-image';
+                    img.onclick = () => window.open(file.url, '_blank');
+                    contentDiv.appendChild(img);
+                } else {
+                    const fileLink = document.createElement('a');
+                    fileLink.href = file.url;
+                    fileLink.target = '_blank';
+                    fileLink.className = 'file-attachment';
+                    fileLink.innerHTML = `<i class="fas fa-file"></i> ${file.name || 'Download'}`;
+                    contentDiv.appendChild(fileLink);
+                }
+            }
+            
+            messageDiv.appendChild(avatarImg);
+            messageDiv.appendChild(contentDiv);
+            
+            // Insert before typing indicator if it exists
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator && typingIndicator.parentNode === messagesDiv) {
+                messagesDiv.insertBefore(messageDiv, typingIndicator);
+            } else {
+                messagesDiv.appendChild(messageDiv);
+            }
+            scrollToBottom();
+        }
 
-    // ==================== Initial fetch of message count ====================
-    fetch('/api/messages/count')
-      .then(res => res.json())
-      .then(data => { lastMessageCount = data.count; })
-      .catch(console.error);
+        socket.on('chat message', (msg) => {
+            appendMessage(msg);
+        });
 
-  </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('✅ Service Worker registered', reg))
-        .catch(err => console.error('❌ Service Worker registration failed', err));
-    }
-  </script>
+        // ========== Send Message ==========
+        function sendMessage() {
+            let text = messageInput.value.trim();
+            if (!text && !pendingFile) return;
+            
+            const data = { text: text };
+            if (pendingFile) {
+                data.file = pendingFile;
+                pendingFile = null;
+            }
+            socket.emit('chat message', data);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            // Reset file pending
+            if (document.getElementById('filePendingIndicator')) {
+                document.getElementById('filePendingIndicator')?.remove();
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // ========== File Upload ==========
+        let pendingFile = null;
+
+        fileButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File too large. Max 10MB.');
+                return;
+            }
+            
+            // Show progress
+            uploadProgressDiv.style.display = 'flex';
+            currentUploadController = new AbortController();
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                    signal: currentUploadController.signal
+                });
+                
+                if (!response.ok) throw new Error('Upload failed');
+                const data = await response.json();
+                pendingFile = {
+                    url: data.url,
+                    name: data.name,
+                    type: data.type
+                };
+                
+                // Show pending indicator in input
+                const pendingSpan = document.createElement('div');
+                pendingSpan.id = 'filePendingIndicator';
+                pendingSpan.style.cssText = 'background:#334155; border-radius:20px; padding:4px 12px; font-size:0.75rem; display:inline-flex; align-items:center; gap:6px; margin-left:10px;';
+                pendingSpan.innerHTML = `<i class="fas fa-paperclip"></i> ${file.name} <span style="cursor:pointer; color:#f87171;" onclick="this.parentElement.remove()">✕</span>`;
+                document.querySelector('.input-wrapper').appendChild(pendingSpan);
+                
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error(err);
+                    alert('Upload failed');
+                }
+            } finally {
+                uploadProgressDiv.style.display = 'none';
+                currentUploadController = null;
+                fileInput.value = '';
+            }
+        });
+
+        cancelUploadBtn.addEventListener('click', () => {
+            if (currentUploadController) {
+                currentUploadController.abort();
+                uploadProgressDiv.style.display = 'none';
+            }
+        });
+
+        // ========== Scroll to Bottom ==========
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // ========== ANONYMOUS TYPING INDICATOR ==========
+        let typingTimer;
+        let isTyping = false;
+
+        function emitTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing');
+            }
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                socket.emit('stop typing');
+                isTyping = false;
+            }, 2000);
+        }
+
+        // Detect typing on the message input
+        messageInput.addEventListener('keypress', () => emitTyping());
+        messageInput.addEventListener('focus', () => emitTyping());
+        messageInput.addEventListener('blur', () => {
+            clearTimeout(typingTimer);
+            if (isTyping) {
+                socket.emit('stop typing');
+                isTyping = false;
+            }
+        });
+
+        const typingIndicator = document.getElementById('typingIndicator');
+        let hideTypingTimer;
+
+        socket.on('user_typing', () => {
+            // Show the indicator inside the message list
+            typingIndicator.style.display = 'flex';
+            clearTimeout(hideTypingTimer);
+            hideTypingTimer = setTimeout(() => {
+                typingIndicator.style.display = 'none';
+            }, 1500);
+        });
+
+        socket.on('user_stop_typing', () => {
+            typingIndicator.style.display = 'none';
+            clearTimeout(hideTypingTimer);
+        });
+        // ========== END TYPING INDICATOR ==========
+
+        // Remove pending file indicator if user cancels via X
+        window.removeFilePending = function() {
+            const el = document.getElementById('filePendingIndicator');
+            if (el) el.remove();
+            pendingFile = null;
+        };
+        
+        // Expose for inline onclick
+        window.removeFilePending = removeFilePending;
+        
+        // Initial scroll
+        scrollToBottom();
+    </script>
 </body>
 </html>
