@@ -167,14 +167,13 @@ function getClientIP(socket) {
 }
 
 // Discord webhook functions
-async function sendToDiscord(name, avatar, text, ip, file = null) {
+async function sendToDiscord(name, avatar, text, file = null) {
     if (!WEBHOOK_URL) return;
     const embed = {
         author: { name: name, icon_url: avatar },
         timestamp: new Date().toISOString(),
         color: 0x5865F2,
-        description: text || '*sent a file*',
-        footer: { text: `IP: [${ip}](https://whatismyipaddress.com/ip/${ip})` }
+        description: text || '*sent a file*'
     };
     if (file) {
         if (file.type && file.type.startsWith('image/')) {
@@ -196,7 +195,6 @@ async function sendToDiscord(name, avatar, text, ip, file = null) {
     }
 }
 
-// Join log for main chat (with hyperlinked IP)
 async function sendJoinLog(name, avatar, userId, ip) {
     if (!LOG_WEBHOOK_URL) return;
     const embed = {
