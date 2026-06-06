@@ -26,6 +26,16 @@
 
 ---
 
+## 📊 Live Service Status
+
+<p align="center">
+  <a href="https://whisper.arsan.my/status"><img src="https://whisper.arsan.my/badge/status/overall.svg" alt="Overall Status"></a>
+  <a href="https://whisper.arsan.my"><img src="https://whisper.arsan.my/badge/status/main.svg" alt="Main Site"></a>
+  <a href="https://whisper.arsan.my"><img src="https://whisper.arsan.my/badge/metrics/messages.svg" alt="Total Messages"></a>
+</p>
+
+---
+
 ## ✨ Features at a glance
 
 | 🌱 Anonymity | 💬 Real‑time | 📎 Files | 🔔 Notifications | 📱 PWA |
@@ -33,56 +43,7 @@
 | No accounts, no emails – you get a unique, never‑reused name | Messages appear instantly via Socket.IO | Share images & docs up to 10 MB | Optional push alerts for new messages | Install like a native app, works offline (shell) |
 
 ### 🧘 A calm space
-- **No tracking** – zero analytics, no third‑party scripts.
+- **No user specific tracking** – zero analytics, no third‑party scripts.
 - **Transient messages** – only the last 500 messages are stored in memory; older ones vanish forever.
 - **Moderation** – admin panel to keep the room peaceful (delete messages, broadcast, rename users).
-- **Responsive & beautiful** – works on phones, tablets, and desktops with a soothing gradient (`#1e293b` → `#312e81`).
-
----
-
-## 🛠️ Tech Stack (in a nutshell)
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
-  <img src="https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express">
-  <img src="https://img.shields.io/badge/Socket.IO-010101?style=for-the-badge&logo=socket.io&logoColor=white" alt="Socket.IO">
-  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind">
-  <img src="https://img.shields.io/badge/PWA-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white" alt="PWA">
-</p>
-
-- **Backend**: Node.js + Express + Socket.IO
-- **Frontend**: HTML + TailwindCSS + vanilla JS (PWA)
-- **Storage**: In‑memory (messages) + JSON files (taken names)
-- **Notifications**: Web Push API + Service Worker
-
----
-
-## 🧭 Philosophy
-
-> Whisper is a **digital campfire** – no identities, no archives, no noise.  
-> Just people talking.
-
-The design is minimal, the colors are calm, and the only goal is to let you **speak freely** without leaving a permanent trace.
-
----
-
-## 📄 Legal & contact
-
-- **Terms of Service** – [`/tos`](https://whisper.arsan.my/tos)
-- **Privacy Policy** – [`/privacy-policy`](https://whisper.arsan.my/privacy-policy)
-- **FAQ** – [`/faq`](https://whisper.arsan.my/faq)
-
-### 📜 License
-
-This project is licensed under the **Proprietary Source‑Visible License (PSVL)**.  
-You may view, fork, and study the code for personal or educational purposes, but you may **not** copy, modify, distribute, or use substantial portions of the project for any commercial or production purpose without explicit written permission from the maintainer.
-
-**Maintainer**: [Arsan](https://github.com/Argzf)  
-📬 Discord: [`@gzf`](https://discord.com/users/935053416877666304) (User ID `935053416877666304`)
-
----
-
-<p align="center">
-  <i>Made with ☕ and a quiet mind.</i><br>
-  <img src="https://img.shields.io/badge/©_2026_Whisper-1e293b?style=flat-square" alt="Copyright">
-</p>
+- **Responsive & beautiful** – works on phones, tablets, and desktops.
