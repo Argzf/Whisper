@@ -1,7 +1,7 @@
 {
-  "name": "Whisper Room",
+  "name": "Whisper Chatroom",
   "short_name": "Whisper",
-  "description": "Anonymous, ephemeral chatroom with unique identities",
+  "description": "Anonymous, chatroom with unique identities",
   "theme_color": "#475569",
   "background_color": "#0a0c10",
   "display": "standalone",
@@ -17,6 +17,12 @@
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/Whisper-180x.png",
+      "sizes": "180x180",
       "type": "image/png",
       "purpose": "any maskable"
     }
