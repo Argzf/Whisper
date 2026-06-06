@@ -254,15 +254,13 @@ io.on('connection', (socket) => {
         socket.emit('load messages', messages);
     });
 
-    // ==================== ANONYMOUS TYPING INDICATOR ====================
+    // Typing indicator
     socket.on('typing', () => {
         socket.broadcast.emit('user_typing');
     });
-
     socket.on('stop typing', () => {
         socket.broadcast.emit('user_stop_typing');
     });
-    // ==================== END TYPING INDICATOR ====================
 
     socket.on('chat message', async (data) => {
         if (!socket.userIdentity) return;
@@ -282,7 +280,7 @@ io.on('connection', (socket) => {
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
-    // Room events (disabled, but keep stubs)
+    // Room stubs
     if (ROOMS_ENABLED) {
         // full room logic would go here
     } else {
@@ -300,69 +298,101 @@ io.on('connection', (socket) => {
     });
 });
 
-// ========== BADGES (simplified, no internal HTTP calls) ==========
-function badgeSVG(label, value, color, labelColor = "#555") {
+// ========== BADGES (with partial failure detection & site theme) ==========
+const THEME_LABEL_COLOR = "#6366f1"; // indigo (matches your site)
+const COLOR_OPERATIONAL = "#2ea44f";
+const COLOR_LIMITED = "#dfb317";
+const COLOR_DOWN = "#cb2431";
+
+function badgeSVG(label, value, valueColor, labelColor = THEME_LABEL_COLOR) {
     const labelWidth = Math.max(label.length * 7 + 10, 40);
     const valueWidth = Math.max(value.length * 7 + 10, 40);
     const width = labelWidth + valueWidth;
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20">
   <rect width="${width}" height="20" fill="${labelColor}"/>
-  <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="${color}"/>
+  <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="${valueColor}"/>
   <text x="${labelWidth/2}" y="14" text-anchor="middle" fill="#fff" font-size="11">${label}</text>
   <text x="${labelWidth + valueWidth/2}" y="14" text-anchor="middle" fill="#fff" font-size="11">${value}</text>
 </svg>`;
 }
 
-// Overall status – since the server is running, we report "operational"
-// If you want to detect partial failures, you can add custom logic later.
+// Helper: check if upload directory is writable
+function isUploadWorking() {
+    try {
+        fs.accessSync(uploadsDir, fs.constants.W_OK);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Helper: check if API is responsive (simple: messages array exists)
+function isApiWorking() {
+    return Array.isArray(messages);
+}
+
+// Helper: check WebSocket – we consider it working if the server has at least one connection or is listening
+function isWebSocketWorking() {
+    // io.engine.clientsCount gives number of connected clients, but even 0 is fine.
+    // We assume WebSocket is working if the server is running.
+    return true;
+}
+
+// Overall status: operational if all components are healthy, limited if upload fails, down if server dead (but server is alive)
+function getOverallStatus() {
+    const uploadOk = isUploadWorking();
+    const apiOk = isApiWorking();
+    const wsOk = isWebSocketWorking();
+    if (uploadOk && apiOk && wsOk) return { text: "operational", color: COLOR_OPERATIONAL };
+    return { text: "service limited", color: COLOR_LIMITED };
+}
+
+// Individual badges
 app.get('/badge/status/overall.svg', (req, res) => {
+    const status = getOverallStatus();
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Whisper', 'operational', '#2ea44f'));
+    res.send(badgeSVG('Whisper', status.text, status.color));
 });
 
-// Individual service badges: all return "up" because they are part of the same process.
-// If you want to test upload, API etc., you can add simple checks (e.g., check if upload directory exists).
 app.get('/badge/status/main.svg', (req, res) => {
+    // Main site is always up if the server responds
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Main site', 'up', '#2ea44f'));
+    res.send(badgeSVG('Main site', 'up', COLOR_OPERATIONAL));
 });
 
 app.get('/badge/status/websocket.svg', (req, res) => {
+    // WebSocket is considered operational as long as the server runs
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('WebSocket', 'connected', '#2ea44f'));
+    res.send(badgeSVG('WebSocket', 'connected', COLOR_OPERATIONAL));
 });
 
 app.get('/badge/status/api.svg', (req, res) => {
+    const apiOk = isApiWorking();
+    const text = apiOk ? 'ready' : 'error';
+    const color = apiOk ? COLOR_OPERATIONAL : COLOR_DOWN;
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('API', 'ready', '#2ea44f'));
+    res.send(badgeSVG('API', text, color));
 });
 
 app.get('/badge/status/upload.svg', (req, res) => {
-    // Check if upload directory exists and is writable as a simple health check
-    let status = "working";
-    let color = "#2ea44f";
-    try {
-        fs.accessSync(uploadsDir, fs.constants.W_OK);
-    } catch {
-        status = "unavailable";
-        color = "#cb2431";
-    }
+    const uploadOk = isUploadWorking();
+    const text = uploadOk ? 'working' : 'unavailable';
+    const color = uploadOk ? COLOR_OPERATIONAL : COLOR_LIMITED;
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('File upload', status, color));
+    res.send(badgeSVG('File upload', text, color));
 });
 
-// Metrics badges (direct from memory)
 app.get('/badge/metrics/users.svg', (req, res) => {
     const count = Object.keys(userMappings).length;
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Total users', count.toString(), '#2ea44f'));
+    res.send(badgeSVG('Total users', count.toString(), COLOR_OPERATIONAL));
 });
 
 app.get('/badge/metrics/messages.svg', (req, res) => {
     const count = messages.length;
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Total messages', count.toString(), '#2ea44f'));
+    res.send(badgeSVG('Total messages', count.toString(), COLOR_OPERATIONAL));
 });
 
 // ========== CLEAN URL ROUTES ==========
@@ -385,7 +415,7 @@ app.get('/chat', (req, res) => {
 // Admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED, ADMIN_LOG_WEBHOOK);
 
-// ========== ERROR HANDLING ==========
+// Error handling
 app.use('/admin/*', (req, res, next) => {
     if (req.accepts('html')) {
         res.status(403).sendFile(path.join(__dirname, '403.html'));
@@ -393,7 +423,6 @@ app.use('/admin/*', (req, res, next) => {
         res.status(403).json({ error: 'Forbidden' });
     }
 });
-
 app.use((req, res, next) => {
     if (req.accepts('html')) {
         res.status(404).sendFile(path.join(__dirname, '404.html'));
@@ -401,7 +430,6 @@ app.use((req, res, next) => {
         res.status(404).json({ error: 'Not Found' });
     }
 });
-
 app.use((err, req, res, next) => {
     console.error(err.stack);
     if (req.accepts('html')) {
