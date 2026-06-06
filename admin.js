@@ -16,14 +16,12 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         return req.session && req.session.authenticated === true;
     }
 
-    // Helper to get client IP from HTTP request
     function getRequestIP(req) {
         const forwarded = req.headers['x-forwarded-for'];
         if (forwarded) return forwarded.split(',')[0].trim();
         return req.socket.remoteAddress;
     }
 
-    // Helper to send admin action logs to Discord
     async function sendAdminLog(action, details, req) {
         if (!ADMIN_LOG_WEBHOOK) return;
         const ip = getRequestIP(req);
@@ -52,24 +50,22 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         }
     }
 
-    // Redirect /admin/login to /admin to avoid 404
     app.get('/admin/login', (req, res) => {
         res.redirect('/admin');
     });
 
     app.get('/admin', (req, res) => {
         if (!isAuthenticated(req)) {
-            // Show login form (unchanged)
             return res.send(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>Admin Login - Whisper</title>
                     <style>
                         body {
-                            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                            font-family: system-ui, -apple-system, sans-serif;
                             background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
                             margin: 0;
                             padding: 2rem;
@@ -81,7 +77,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         .login-card {
                             background: rgba(15, 25, 35, 0.8);
                             backdrop-filter: blur(10px);
-                            border: 1px solid rgba(255, 255, 255, 0.1);
+                            border: 1px solid rgba(255,255,255,0.1);
                             border-radius: 1.5rem;
                             padding: 2rem;
                             max-width: 400px;
@@ -96,8 +92,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                             width: 100%;
                             padding: 0.75rem;
                             border-radius: 0.75rem;
-                            border: 1px solid rgba(255, 255, 255, 0.2);
-                            background: rgba(0, 0, 0, 0.5);
+                            border: 1px solid rgba(255,255,255,0.2);
+                            background: rgba(0,0,0,0.5);
                             color: white;
                             font-size: 1rem;
                             margin-bottom: 1rem;
@@ -130,12 +126,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             `);
         }
 
-        // --- Authenticated dashboard ---
-        const userList = Object.entries(userMappings).map(([id, data]) => ({
-            id,
-            name: data.name,
-            avatar: data.avatar
-        }));
+        const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
         const recentMessages = messages.slice(-50).reverse();
         const allRooms = roomsModule.getAllRooms();
 
@@ -143,44 +134,36 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Whisper</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
             background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
+            margin: 0;
+            padding: 2rem;
             color: #e2e8f0;
-            padding: 1rem;
         }
         .container {
             max-width: 1400px;
             margin: 0 auto;
         }
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        @media (min-width: 768px) {
-            h1 { font-size: 2rem; }
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        h1 { font-size: 2rem; margin-bottom: 1rem; }
+        .stats {
+            display: flex;
             gap: 1rem;
             margin-bottom: 2rem;
+            flex-wrap: wrap;
         }
         .stat-card {
-            background: rgba(15, 25, 35, 0.6);
+            background: rgba(15,25,35,0.6);
             backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 1rem;
             padding: 1rem;
             text-align: center;
+            flex: 1;
+            min-width: 120px;
         }
         .stat-number {
             font-size: 2rem;
@@ -188,39 +171,30 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             color: #a5b4fc;
         }
         .section {
-            background: rgba(15, 25, 35, 0.6);
+            background: rgba(15,25,35,0.6);
             backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 1rem;
             padding: 1rem;
             margin-bottom: 2rem;
-            overflow-x: auto;
         }
         h2 {
-            font-size: 1.25rem;
+            font-size: 1.5rem;
             margin-bottom: 1rem;
             color: #cbd5e1;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.875rem;
         }
         th, td {
             padding: 0.75rem;
             text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
-        th {
-            color: #a5b4fc;
-        }
-        .message-row {
-            word-break: break-word;
-        }
-        .file-link {
-            color: #818cf8;
-            text-decoration: none;
-        }
+        th { color: #a5b4fc; }
+        .message-row { word-break: break-word; }
+        .file-link { color: #818cf8; text-decoration: none; }
         .btn-danger {
             background: #ef4444;
             border: none;
@@ -228,9 +202,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             border-radius: 0.25rem;
             cursor: pointer;
             color: white;
-        }
-        .btn-danger:hover {
-            background: #dc2626;
         }
         .btn-primary {
             background: #4f46e5;
@@ -240,26 +211,17 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             cursor: pointer;
             color: white;
         }
-        .room-list {
+        .room-list, .user-list {
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
         }
-        .room-card {
-            background: rgba(0, 0, 0, 0.3);
+        .room-card, .user-card {
+            background: rgba(0,0,0,0.3);
             border-radius: 0.5rem;
             padding: 0.5rem;
-            min-width: 150px;
-        }
-        .user-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
         }
         .user-card {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 0.5rem;
-            padding: 0.5rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -280,8 +242,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             flex: 1;
             padding: 0.5rem;
             border-radius: 0.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.5);
             color: white;
         }
         .broadcast-area {
@@ -293,21 +255,22 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             width: 100%;
             padding: 0.5rem;
             border-radius: 0.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.5);
             color: white;
             resize: vertical;
         }
         .danger-zone {
             border-color: #ef4444;
         }
+        /* Mobile fixes */
         @media (max-width: 640px) {
-            body { padding: 0.5rem; }
-            .section { padding: 0.75rem; }
-            th, td { padding: 0.5rem; }
-            .stats-grid { gap: 0.5rem; }
-            .stat-card { padding: 0.75rem; }
-            .user-card { width: 100%; }
+            body { padding: 1rem; }
+            .section { overflow-x: auto; }
+            table { display: block; overflow-x: auto; white-space: nowrap; }
+            .stats { flex-direction: column; }
+            .btn-danger, .btn-primary { padding: 0.5rem 0.75rem; }
+            .identity-input { flex-direction: column; }
         }
     </style>
 </head>
@@ -316,7 +279,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     <h1>🛡️ Admin Dashboard</h1>
     <a href="/chat" style="display: inline-block; margin-bottom: 1rem; background: #4f46e5; padding: 0.5rem 1rem; border-radius: 0.5rem; color: white; text-decoration: none;">← Go to Chat</a>
 
-    <div class="stats-grid">
+    <div class="stats">
         <div class="stat-card"><div class="stat-number">${messages.length}</div><div>Total Messages</div></div>
         <div class="stat-card"><div class="stat-number">${userList.length}</div><div>Total Users</div></div>
         <div class="stat-card"><div class="stat-number">${recentMessages.length}</div><div>Recent Activity</div></div>
@@ -325,29 +288,31 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     <div class="section">
         <h2>📩 Recent Messages</h2>
         ${recentMessages.length === 0 ? '<p>No messages yet.</p>' : `
-        <table>
-            <thead><tr><th>User</th><th>Time</th><th>Content</th><th>Action</th></tr></thead>
-            <tbody>
-                ${recentMessages.map(m => {
-                    let fileHtml = '';
-                    if (m.file) {
-                        if (m.file.type && m.file.type.startsWith('image/')) {
-                            fileHtml = `<div><a href="${m.file.url}" target="_blank">📷 Image</a></div>`;
-                        } else {
-                            fileHtml = `<div><a href="${m.file.url}" target="_blank">📎 ${escapeHtml(m.file.name)}</a></div>`;
+        <div style="overflow-x: auto;">
+            <table>
+                <thead><tr><th>User</th><th>Time</th><th>Content</th><th>Action</th></tr></thead>
+                <tbody>
+                    ${recentMessages.map(m => {
+                        let fileHtml = '';
+                        if (m.file) {
+                            if (m.file.type && m.file.type.startsWith('image/')) {
+                                fileHtml = `<div><a href="${m.file.url}" target="_blank">📷 Image</a></div>`;
+                            } else {
+                                fileHtml = `<div><a href="${m.file.url}" target="_blank">📎 ${escapeHtml(m.file.name)}</a></div>`;
+                            }
                         }
-                    }
-                    return `
-                        <tr class="message-row">
-                            <td>${escapeHtml(m.senderName)}</td>
-                            <td>${new Date(m.timestamp).toLocaleString()}</td>
-                            <td>${escapeHtml(m.text || '')}${fileHtml}</td>
-                            <td><button class="btn-danger" onclick="deleteMessage('${m.id}')">🗑️ Delete</button></td>
-                        </tr>
-                    `;
-                }).join('')}
-            </tbody>
-        </table>
+                        return `
+                            <tr class="message-row">
+                                <td>${escapeHtml(m.senderName)}</td>
+                                <td>${new Date(m.timestamp).toLocaleString()}</td>
+                                <td>${escapeHtml(m.text || '')}${fileHtml}</td>
+                                <td><button class="btn-danger" onclick="deleteMessage('${m.id}')">🗑️ Delete</button></td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
         `}
     </div>
 
@@ -421,7 +386,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }).then(() => location.reload());
         }
     }
-
     function createRoom() {
         const name = prompt('Room name:');
         if (name) {
@@ -432,7 +396,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }).then(() => location.reload());
         }
     }
-
     function editRoom(name) {
         const newName = prompt('New name:', name);
         if (newName && newName !== name) {
@@ -443,7 +406,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }).then(() => location.reload());
         }
     }
-
     function deleteRoom(name) {
         if (confirm('Delete this room?')) {
             fetch('/admin/delete-room', {
@@ -453,7 +415,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }).then(() => location.reload());
         }
     }
-
     function applyPresetIdentity() {
         const name = document.getElementById('presetName').value;
         if (name) {
@@ -464,7 +425,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }).then(() => location.reload());
         }
     }
-
     function applyCustomIdentity() {
         const name = document.getElementById('customName').value;
         const avatar = document.getElementById('customAvatar').value;
@@ -476,7 +436,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }).then(() => location.reload());
         }
     }
-
     function sendBroadcast() {
         const message = document.getElementById('broadcastMessage').value;
         if (message) {
@@ -490,14 +449,12 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             });
         }
     }
-
     function purgeMessages() {
         if (confirm('⚠️ This will delete ALL messages! Are you sure?')) {
             fetch('/admin/purge-messages', { method: 'POST' })
                 .then(() => location.reload());
         }
     }
-
     function logout() {
         fetch('/admin/logout', { method: 'POST' })
             .then(() => location.reload());
@@ -548,14 +505,10 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.json({ success: true });
     });
 
-    // Rename current user (preset)
     app.post('/admin/rename-user', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
         const { name } = req.body;
         if (name) {
-            // For simplicity, we'll rename all users with that name? No, we'll rename a specific user.
-            // This is a placeholder. In a real implementation, you'd have a list of users to rename.
-            // For now, we'll just return success.
             sendAdminLog('Rename User', `Renamed user to ${name}`, req);
         }
         res.json({ success: true });
@@ -564,7 +517,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
     app.post('/admin/change-identity', (req, res) => {
         if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
         const { name, avatar } = req.body;
-        // This is a placeholder for changing identity of a specific user.
         sendAdminLog('Change Identity', `Name: ${name}, Avatar: ${avatar}`, req);
         res.json({ success: true });
     });
@@ -585,7 +537,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }
             res.json({ success: true });
         });
-
         app.post('/admin/edit-room', (req, res) => {
             if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
             const { oldName, newName, password } = req.body;
@@ -596,7 +547,6 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
             }
             res.json({ success: true });
         });
-
         app.post('/admin/delete-room', (req, res) => {
             if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
             const { name } = req.body;
