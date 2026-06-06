@@ -300,6 +300,133 @@ io.on('connection', (socket) => {
     });
 });
 
+// ========== DYNAMIC BADGES ==========
+// Helper: generate SVG badge
+function badgeSVG(label, value, color, labelColor = "#555") {
+    const labelWidth = label.length * 7 + 10; // rough estimate
+    const valueWidth = value.length * 7 + 10;
+    const width = labelWidth + valueWidth;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20">
+  <rect width="${width}" height="20" fill="${labelColor}"/>
+  <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="${color}"/>
+  <text x="${labelWidth/2}" y="14" text-anchor="middle" fill="#fff" font-size="11">${label}</text>
+  <text x="${labelWidth + valueWidth/2}" y="14" text-anchor="middle" fill="#fff" font-size="11">${value}</text>
+</svg>`;
+}
+
+// Health check for main site
+async function checkMainSite() {
+    try {
+        const res = await fetch(`http://localhost:${PORT}/`);
+        return res.status === 200;
+    } catch { return false; }
+}
+
+// Health check for WebSocket (try to connect and disconnect)
+async function checkWebSocket() {
+    return new Promise((resolve) => {
+        const client = require('socket.io-client');
+        const socket = client(`http://localhost:${PORT}`);
+        const timeout = setTimeout(() => {
+            socket.disconnect();
+            resolve(false);
+        }, 2000);
+        socket.on('connect', () => {
+            clearTimeout(timeout);
+            socket.disconnect();
+            resolve(true);
+        });
+        socket.on('connect_error', () => {
+            clearTimeout(timeout);
+            resolve(false);
+        });
+    });
+}
+
+// Health check for API (messages count endpoint)
+async function checkAPI() {
+    try {
+        const res = await fetch(`http://localhost:${PORT}/api/messages/count`);
+        return res.status === 200;
+    } catch { return false; }
+}
+
+// Health check for upload (small dummy file)
+async function checkUpload() {
+    try {
+        const formData = new FormData();
+        const dummy = new Blob(['test'], { type: 'text/plain' });
+        formData.append('file', dummy, 'test.txt');
+        const res = await fetch(`http://localhost:${PORT}/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        return res.status === 200;
+    } catch { return false; }
+}
+
+// Overall status: operational (green) if all services work; limited (yellow) if any fails
+async function getOverallStatus() {
+    const [main, ws, api, upload] = await Promise.all([
+        checkMainSite(),
+        checkWebSocket(),
+        checkAPI(),
+        checkUpload()
+    ]);
+    if (main && ws && api && upload) return { text: "operational", color: "#2ea44f" };
+    return { text: "service limited", color: "#dfb317" };
+}
+
+// Badge: overall status
+app.get('/badge/status/overall.svg', async (req, res) => {
+    const status = await getOverallStatus();
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('Whisper', status.text, status.color));
+});
+
+// Badge: main site
+app.get('/badge/status/main.svg', async (req, res) => {
+    const online = await checkMainSite();
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('Main site', online ? 'up' : 'down', online ? '#2ea44f' : '#cb2431'));
+});
+
+// Badge: WebSocket
+app.get('/badge/status/websocket.svg', async (req, res) => {
+    const online = await checkWebSocket();
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('WebSocket', online ? 'connected' : 'disconnected', online ? '#2ea44f' : '#cb2431'));
+});
+
+// Badge: API
+app.get('/badge/status/api.svg', async (req, res) => {
+    const online = await checkAPI();
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('API', online ? 'ready' : 'error', online ? '#2ea44f' : '#cb2431'));
+});
+
+// Badge: Upload
+app.get('/badge/status/upload.svg', async (req, res) => {
+    const online = await checkUpload();
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('File upload', online ? 'working' : 'failed', online ? '#2ea44f' : '#cb2431'));
+});
+
+// Badge: user count
+app.get('/badge/metrics/users.svg', (req, res) => {
+    const count = Object.keys(userMappings).length;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('Total users', count.toString(), '#2ea44f'));
+});
+
+// Badge: message count
+app.get('/badge/metrics/messages.svg', (req, res) => {
+    const count = messages.length;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('Total messages', count.toString(), '#2ea44f'));
+});
+
 // ========== CLEAN URL ROUTES ==========
 app.get('/faq', (req, res) => res.sendFile(path.join(__dirname, 'faq.html')));
 app.get('/privacy-policy', (req, res) => res.sendFile(path.join(__dirname, 'pp.html')));
