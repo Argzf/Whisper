@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/Whisper-180x.png">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <meta name="theme-color" content="#1e293b">
 
@@ -12,14 +13,16 @@
   <meta name="title" content="Whisper">
   <meta name="description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
 
+  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="whisper.arsan.my">
+  <meta property="og:url" content="/">
   <meta property="og:title" content="Whisper">
   <meta property="og:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
   <meta property="og:image" content="/wr-banner.png">
 
+  <!-- X (Twitter) -->
   <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="whisper.arsan.my">
+  <meta property="twitter:url" content="/">
   <meta property="twitter:title" content="Whisper">
   <meta property="twitter:description" content="Whisper is a peaceful, anonymous chatroom. Every participant receives a unique name and avatar that are never reused. Messages appear instantly, and you can choose to receive push notifications. No accounts, no tracking – simply quiet conversation.">
   <meta property="twitter:image" content="/wr-banner.png">
@@ -217,6 +220,22 @@
     @keyframes bounce {
       0%, 80%, 100% { transform: scale(0); }
       40% { transform: scale(1); }
+    }
+
+    /* Mobile send button fix */
+    .input-wrapper {
+      display: flex;
+      flex: 1;
+      gap: 8px;
+    }
+    /* Ensure textarea margin doesn't cause button mis-clicks on iOS PWA */
+    textarea:focus {
+      outline: none;
+    }
+    /* Remove any dynamic margin that could shift the button */
+    .send-btn {
+      cursor: pointer;
+      touch-action: manipulation;
     }
   </style>
 </head>
@@ -501,13 +520,20 @@
     });
     // ==================== END TYPING INDICATOR ====================
 
-    // ==================== SEND MESSAGE ====================
+    // ==================== SEND MESSAGE (FIXED FOR MOBILE) ====================
     function sendMessage() {
-      if (!isReady) return;
+      if (!isReady) {
+        console.warn("Not ready to send yet");
+        return;
+      }
       const text = messageInput.value.trim();
       if (!text) return;
       requestNotificationPermissionSafe();
-      socket.emit('chat message', { text, file: null });
+      // Emit the message
+      socket.emit('chat message', { text, file: null }, (ack) => {
+        // Optional: server can acknowledge. If no ack, assume success.
+      });
+      // Clear input and refocus
       messageInput.value = '';
       messageInput.focus();
     }
@@ -522,11 +548,9 @@
     // ==================== END SEND MESSAGE ====================
 
     // ==================== MARKDOWN RENDERING ====================
-    // Helper function to safely render markdown and open links in new tab
     function renderMarkdown(text) {
       if (!text) return '';
       let html = marked.parse(text);
-      // Create a temporary div to manipulate links
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = html;
       tempDiv.querySelectorAll('a').forEach(a => a.setAttribute('target', '_blank'));
@@ -555,7 +579,6 @@
       }
       const bubble = document.createElement('div');
       bubble.className = `px-4 py-2 rounded-2xl message-bubble inline-block ${isOwn ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-100 rounded-bl-none'}`;
-      
       if (msg.file) {
         if (msg.file.type && msg.file.type.startsWith('image/')) {
           const img = document.createElement('img');
@@ -579,7 +602,6 @@
       } else {
         bubble.innerHTML = renderMarkdown(msg.text);
       }
-      
       contentWrapper.appendChild(bubble);
       if (!isOwn) {
         const timeSpan = document.createElement('div');
