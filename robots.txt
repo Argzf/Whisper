@@ -21,6 +21,8 @@ Allow: /tos
 Allow: /privacy-policy
 Allow: /faq
 Allow: /index.html
+Allow: /badge
+Allow: /status
 
 # Sitemap location
 Sitemap: https://whisper.arsan.my/sitemap.xml
