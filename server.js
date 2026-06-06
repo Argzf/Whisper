@@ -32,7 +32,6 @@ if (!ADMIN_PASSCODE) {
     console.error('❌ Missing ADMIN_PASSCODE in .env');
     process.exit(1);
 }
-// NEW: Admin action log webhook (optional)
 const ADMIN_LOG_WEBHOOK = process.env.WH_ADMIN_LOGS || null;
 const PORT = process.env.PORT || 3000;
 
@@ -169,7 +168,7 @@ function getClientIP(socket) {
 }
 
 // Discord webhook functions
-async function sendToDiscord(name, avatar, text, file = null) {
+async function sendToDiscord(name, avatar, text, ip, file = null) {
     if (!WEBHOOK_URL) return;
     const embed = {
         author: { name: name, icon_url: avatar },
@@ -182,7 +181,7 @@ async function sendToDiscord(name, avatar, text, file = null) {
             embed.image = { url: file.url };
             embed.description += `\n[🖼️ View full size](${file.url})`;
         } else {
-            embed.description += `\n📎 [${file.name}](${file.url})`;
+            embed.description += `\n[${file.name}](${file.url})`;
         }
     }
     try {
@@ -257,12 +256,10 @@ io.on('connection', (socket) => {
 
     // ==================== ANONYMOUS TYPING INDICATOR ====================
     socket.on('typing', () => {
-        // Broadcast anonymously to all other users
         socket.broadcast.emit('user_typing');
     });
 
     socket.on('stop typing', () => {
-        // Broadcast anonymously to all other users
         socket.broadcast.emit('user_stop_typing');
     });
     // ==================== END TYPING INDICATOR ====================
@@ -270,6 +267,7 @@ io.on('connection', (socket) => {
     socket.on('chat message', async (data) => {
         if (!socket.userIdentity) return;
         const { name, avatar } = socket.userIdentity;
+        const clientIP = getClientIP(socket);
         const msg = {
             id: crypto.randomUUID(),
             text: data.text || '',
@@ -281,7 +279,7 @@ io.on('connection', (socket) => {
         messages.push(msg);
         if (messages.length > 500) messages.shift();
         io.emit('chat message', msg);
-        await sendToDiscord(name, avatar, msg.text, msg.file);
+        await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
     // Room events (disabled, but keep stubs)
@@ -306,21 +304,20 @@ io.on('connection', (socket) => {
 app.get('/faq', (req, res) => res.sendFile(path.join(__dirname, 'faq.html')));
 app.get('/privacy-policy', (req, res) => res.sendFile(path.join(__dirname, 'pp.html')));
 app.get('/tos', (req, res) => res.sendFile(path.join(__dirname, 'tos.html')));
+app.get('/status', (req, res) => res.sendFile(path.join(__dirname, 'uptime.html')));
 app.get('/faq.html', (req, res) => res.redirect(301, '/faq'));
 app.get('/pp.html', (req, res) => res.redirect(301, '/privacy-policy'));
 app.get('/tos.html', (req, res) => res.redirect(301, '/tos'));
 
+// Main chat routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, 'chat.html'));
 });
-app.get('/status', (req, res) => {
-    res.sendFile(path.join(__dirname, 'uptime.html'));
-});
 
-// Admin panel (external admin.js) – now with ADMIN_LOG_WEBHOOK
+// Admin panel (external admin.js)
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED, ADMIN_LOG_WEBHOOK);
 
 // ========== ERROR HANDLING ==========
