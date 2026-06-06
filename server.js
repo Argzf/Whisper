@@ -254,7 +254,6 @@ io.on('connection', (socket) => {
         socket.emit('load messages', messages);
     });
 
-    // Typing indicator
     socket.on('typing', () => {
         socket.broadcast.emit('user_typing');
     });
@@ -280,7 +279,6 @@ io.on('connection', (socket) => {
         await sendToDiscord(name, avatar, msg.text, clientIP, msg.file);
     });
 
-    // Room stubs
     if (ROOMS_ENABLED) {
         // full room logic would go here
     } else {
@@ -298,23 +296,58 @@ io.on('connection', (socket) => {
     });
 });
 
-// ========== BADGES (with partial failure detection & site theme) ==========
-const THEME_LABEL_COLOR = "#6366f1"; // indigo (matches your site)
-const COLOR_OPERATIONAL = "#2ea44f";
+// ========== ENHANCED BADGES (with parameters, live updates, better font) ==========
+const DEFAULT_LABEL_COLOR = "#6366f1"; // indigo (matches site)
+const DEFAULT_VALUE_COLOR = "#2ea44f";
 const COLOR_LIMITED = "#dfb317";
 const COLOR_DOWN = "#cb2431";
 
-function badgeSVG(label, value, valueColor, labelColor = THEME_LABEL_COLOR) {
-    const labelWidth = Math.max(label.length * 7 + 10, 40);
-    const valueWidth = Math.max(value.length * 7 + 10, 40);
-    const width = labelWidth + valueWidth;
+function badgeSVG(label, value, valueColor, labelColor = DEFAULT_LABEL_COLOR, style = 'flat') {
+    // Font and dimensions based on style
+    let fontFamily = 'font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif"';
+    let fontSize = 11;
+    let labelPadding = 10;
+    let valuePadding = 10;
+    let height = 20;
+    
+    if (style === 'flat-square') {
+        fontSize = 11;
+        labelPadding = 10;
+        valuePadding = 10;
+        height = 20;
+    } else if (style === 'for-the-badge') {
+        fontSize = 13;
+        labelPadding = 14;
+        valuePadding = 14;
+        height = 28;
+    }
+    
+    // Approximate text width: each character ~6px for normal, ~8px for for-the-badge
+    const charWidth = style === 'for-the-badge' ? 8 : 6;
+    const labelWidth = Math.max(label.length * charWidth + labelPadding, 40);
+    const valueWidth = Math.max(value.length * charWidth + valuePadding, 40);
+    const totalWidth = labelWidth + valueWidth;
+    
     return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20">
-  <rect width="${width}" height="20" fill="${labelColor}"/>
-  <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="${valueColor}"/>
-  <text x="${labelWidth/2}" y="14" text-anchor="middle" fill="#fff" font-size="11">${label}</text>
-  <text x="${labelWidth + valueWidth/2}" y="14" text-anchor="middle" fill="#fff" font-size="11">${value}</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${height}">
+  <rect width="${totalWidth}" height="${height}" fill="${labelColor}"/>
+  <rect x="${labelWidth}" width="${valueWidth}" height="${height}" fill="${valueColor}"/>
+  <text x="${labelWidth/2}" y="${height/2+4}" text-anchor="middle" fill="#fff" font-size="${fontSize}" ${fontFamily}>${label}</text>
+  <text x="${labelWidth + valueWidth/2}" y="${height/2+4}" text-anchor="middle" fill="#fff" font-size="${fontSize}" ${fontFamily}>${value}</text>
 </svg>`;
+}
+
+function parseStyle(req) {
+    const style = req.query.style || 'flat';
+    if (['flat', 'flat-square', 'for-the-badge'].includes(style)) return style;
+    return 'flat';
+}
+
+function parseColor(colorParam, defaultColor) {
+    if (!colorParam) return defaultColor;
+    // Accept hex with or without #, or named colors (simple)
+    if (colorParam.startsWith('#')) return colorParam;
+    return `#${colorParam}`;
 }
 
 // Helper: check if upload directory is writable
@@ -327,72 +360,85 @@ function isUploadWorking() {
     }
 }
 
-// Helper: check if API is responsive (simple: messages array exists)
-function isApiWorking() {
-    return Array.isArray(messages);
-}
+function isApiWorking() { return Array.isArray(messages); }
+function isWebSocketWorking() { return true; }
 
-// Helper: check WebSocket – we consider it working if the server has at least one connection or is listening
-function isWebSocketWorking() {
-    // io.engine.clientsCount gives number of connected clients, but even 0 is fine.
-    // We assume WebSocket is working if the server is running.
-    return true;
-}
-
-// Overall status: operational if all components are healthy, limited if upload fails, down if server dead (but server is alive)
 function getOverallStatus() {
     const uploadOk = isUploadWorking();
     const apiOk = isApiWorking();
     const wsOk = isWebSocketWorking();
-    if (uploadOk && apiOk && wsOk) return { text: "operational", color: COLOR_OPERATIONAL };
+    if (uploadOk && apiOk && wsOk) return { text: "operational", color: DEFAULT_VALUE_COLOR };
     return { text: "service limited", color: COLOR_LIMITED };
 }
 
-// Individual badges
+// Badge endpoints with query parameters
 app.get('/badge/status/overall.svg', (req, res) => {
     const status = getOverallStatus();
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, status.color);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Whisper', status.text, status.color));
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(badgeSVG('Whisper', status.text, valueColor, labelColor, style));
 });
 
 app.get('/badge/status/main.svg', (req, res) => {
-    // Main site is always up if the server responds
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, DEFAULT_VALUE_COLOR);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Main site', 'up', COLOR_OPERATIONAL));
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(badgeSVG('Main site', 'up', valueColor, labelColor, style));
 });
 
 app.get('/badge/status/websocket.svg', (req, res) => {
-    // WebSocket is considered operational as long as the server runs
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, DEFAULT_VALUE_COLOR);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('WebSocket', 'connected', COLOR_OPERATIONAL));
+    res.send(badgeSVG('WebSocket', 'connected', valueColor, labelColor, style));
 });
 
 app.get('/badge/status/api.svg', (req, res) => {
     const apiOk = isApiWorking();
     const text = apiOk ? 'ready' : 'error';
-    const color = apiOk ? COLOR_OPERATIONAL : COLOR_DOWN;
+    const color = apiOk ? DEFAULT_VALUE_COLOR : COLOR_DOWN;
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, color);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('API', text, color));
+    res.send(badgeSVG('API', text, valueColor, labelColor, style));
 });
 
 app.get('/badge/status/upload.svg', (req, res) => {
     const uploadOk = isUploadWorking();
     const text = uploadOk ? 'working' : 'unavailable';
-    const color = uploadOk ? COLOR_OPERATIONAL : COLOR_LIMITED;
+    const color = uploadOk ? DEFAULT_VALUE_COLOR : COLOR_LIMITED;
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, color);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('File upload', text, color));
+    res.send(badgeSVG('File upload', text, valueColor, labelColor, style));
 });
 
 app.get('/badge/metrics/users.svg', (req, res) => {
     const count = Object.keys(userMappings).length;
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, DEFAULT_VALUE_COLOR);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Total users', count.toString(), COLOR_OPERATIONAL));
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(badgeSVG('Total users', count.toString(), valueColor, labelColor, style));
 });
 
 app.get('/badge/metrics/messages.svg', (req, res) => {
-    const count = messages.length;
+    const count = messages.length; // Live count
+    const style = parseStyle(req);
+    const labelColor = parseColor(req.query.labelColor, DEFAULT_LABEL_COLOR);
+    const valueColor = parseColor(req.query.color, DEFAULT_VALUE_COLOR);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Total messages', count.toString(), COLOR_OPERATIONAL));
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(badgeSVG('Total messages', count.toString(), valueColor, labelColor, style));
 });
 
 // ========== CLEAN URL ROUTES ==========
@@ -404,7 +450,6 @@ app.get('/faq.html', (req, res) => res.redirect(301, '/faq'));
 app.get('/pp.html', (req, res) => res.redirect(301, '/privacy-policy'));
 app.get('/tos.html', (req, res) => res.redirect(301, '/tos'));
 
-// Main chat routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -412,7 +457,6 @@ app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
-// Admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED, ADMIN_LOG_WEBHOOK);
 
 // Error handling
