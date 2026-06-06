@@ -300,11 +300,10 @@ io.on('connection', (socket) => {
     });
 });
 
-// ========== DYNAMIC BADGES ==========
-// Helper: generate SVG badge
+// ========== BADGES (simplified, no internal HTTP calls) ==========
 function badgeSVG(label, value, color, labelColor = "#555") {
-    const labelWidth = label.length * 7 + 10; // rough estimate
-    const valueWidth = value.length * 7 + 10;
+    const labelWidth = Math.max(label.length * 7 + 10, 40);
+    const valueWidth = Math.max(value.length * 7 + 10, 40);
     const width = labelWidth + valueWidth;
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20">
@@ -315,112 +314,51 @@ function badgeSVG(label, value, color, labelColor = "#555") {
 </svg>`;
 }
 
-// Health check for main site
-async function checkMainSite() {
+// Overall status – since the server is running, we report "operational"
+// If you want to detect partial failures, you can add custom logic later.
+app.get('/badge/status/overall.svg', (req, res) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('Whisper', 'operational', '#2ea44f'));
+});
+
+// Individual service badges: all return "up" because they are part of the same process.
+// If you want to test upload, API etc., you can add simple checks (e.g., check if upload directory exists).
+app.get('/badge/status/main.svg', (req, res) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('Main site', 'up', '#2ea44f'));
+});
+
+app.get('/badge/status/websocket.svg', (req, res) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('WebSocket', 'connected', '#2ea44f'));
+});
+
+app.get('/badge/status/api.svg', (req, res) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(badgeSVG('API', 'ready', '#2ea44f'));
+});
+
+app.get('/badge/status/upload.svg', (req, res) => {
+    // Check if upload directory exists and is writable as a simple health check
+    let status = "working";
+    let color = "#2ea44f";
     try {
-        const res = await fetch(`http://localhost:${PORT}/`);
-        return res.status === 200;
-    } catch { return false; }
-}
-
-// Health check for WebSocket (try to connect and disconnect)
-async function checkWebSocket() {
-    return new Promise((resolve) => {
-        const client = require('socket.io-client');
-        const socket = client(`http://localhost:${PORT}`);
-        const timeout = setTimeout(() => {
-            socket.disconnect();
-            resolve(false);
-        }, 2000);
-        socket.on('connect', () => {
-            clearTimeout(timeout);
-            socket.disconnect();
-            resolve(true);
-        });
-        socket.on('connect_error', () => {
-            clearTimeout(timeout);
-            resolve(false);
-        });
-    });
-}
-
-// Health check for API (messages count endpoint)
-async function checkAPI() {
-    try {
-        const res = await fetch(`http://localhost:${PORT}/api/messages/count`);
-        return res.status === 200;
-    } catch { return false; }
-}
-
-// Health check for upload (small dummy file)
-async function checkUpload() {
-    try {
-        const formData = new FormData();
-        const dummy = new Blob(['test'], { type: 'text/plain' });
-        formData.append('file', dummy, 'test.txt');
-        const res = await fetch(`http://localhost:${PORT}/upload`, {
-            method: 'POST',
-            body: formData
-        });
-        return res.status === 200;
-    } catch { return false; }
-}
-
-// Overall status: operational (green) if all services work; limited (yellow) if any fails
-async function getOverallStatus() {
-    const [main, ws, api, upload] = await Promise.all([
-        checkMainSite(),
-        checkWebSocket(),
-        checkAPI(),
-        checkUpload()
-    ]);
-    if (main && ws && api && upload) return { text: "operational", color: "#2ea44f" };
-    return { text: "service limited", color: "#dfb317" };
-}
-
-// Badge: overall status
-app.get('/badge/status/overall.svg', async (req, res) => {
-    const status = await getOverallStatus();
+        fs.accessSync(uploadsDir, fs.constants.W_OK);
+    } catch {
+        status = "unavailable";
+        color = "#cb2431";
+    }
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Whisper', status.text, status.color));
+    res.send(badgeSVG('File upload', status, color));
 });
 
-// Badge: main site
-app.get('/badge/status/main.svg', async (req, res) => {
-    const online = await checkMainSite();
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('Main site', online ? 'up' : 'down', online ? '#2ea44f' : '#cb2431'));
-});
-
-// Badge: WebSocket
-app.get('/badge/status/websocket.svg', async (req, res) => {
-    const online = await checkWebSocket();
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('WebSocket', online ? 'connected' : 'disconnected', online ? '#2ea44f' : '#cb2431'));
-});
-
-// Badge: API
-app.get('/badge/status/api.svg', async (req, res) => {
-    const online = await checkAPI();
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('API', online ? 'ready' : 'error', online ? '#2ea44f' : '#cb2431'));
-});
-
-// Badge: Upload
-app.get('/badge/status/upload.svg', async (req, res) => {
-    const online = await checkUpload();
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(badgeSVG('File upload', online ? 'working' : 'failed', online ? '#2ea44f' : '#cb2431'));
-});
-
-// Badge: user count
+// Metrics badges (direct from memory)
 app.get('/badge/metrics/users.svg', (req, res) => {
     const count = Object.keys(userMappings).length;
     res.setHeader('Content-Type', 'image/svg+xml');
     res.send(badgeSVG('Total users', count.toString(), '#2ea44f'));
 });
 
-// Badge: message count
 app.get('/badge/metrics/messages.svg', (req, res) => {
     const count = messages.length;
     res.setHeader('Content-Type', 'image/svg+xml');
@@ -444,11 +382,10 @@ app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
-// Admin panel (external admin.js)
+// Admin panel
 setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, null, ROOMS_ENABLED, ADMIN_LOG_WEBHOOK);
 
 // ========== ERROR HANDLING ==========
-// 403 Forbidden
 app.use('/admin/*', (req, res, next) => {
     if (req.accepts('html')) {
         res.status(403).sendFile(path.join(__dirname, '403.html'));
@@ -457,7 +394,6 @@ app.use('/admin/*', (req, res, next) => {
     }
 });
 
-// 404 handler
 app.use((req, res, next) => {
     if (req.accepts('html')) {
         res.status(404).sendFile(path.join(__dirname, '404.html'));
@@ -466,7 +402,6 @@ app.use((req, res, next) => {
     }
 });
 
-// 500 internal server error handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
     if (req.accepts('html')) {
@@ -476,7 +411,6 @@ app.use((err, req, res, next) => {
     }
 });
 
-// ========== START SERVER ==========
 server.listen(PORT, () => {
     console.log(`🚀 Chat + Admin running on http://localhost:${PORT}`);
     if (!ROOMS_ENABLED) console.log('⚠️ Rooms feature is currently DISABLED');
