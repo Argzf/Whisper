@@ -2,87 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const roomsModule = require('./rooms');
 
-// ========== DISCORD OAUTH2 IMPORTS ==========
-const passport = require('passport');
-const DiscordStrategy = require('passport-discord').Strategy;
-
 function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED = true, ADMIN_LOG_WEBHOOK = null) {
 
-    // ========== DISCORD OAUTH2 CONFIGURATION ==========
-    const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
-    const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-    const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'https://whisper.arsan.my/admin/auth/discord/callback';
-    const ALLOWED_DISCORD_IDS = ['935053416877666304', '935150412661682256'];
-
-    // Initialize Passport
-    app.use(passport.initialize());
-    app.use(passport.session());
-
-    if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
-        passport.use(new DiscordStrategy({
-            clientID: DISCORD_CLIENT_ID,
-            clientSecret: DISCORD_CLIENT_SECRET,
-            callbackURL: DISCORD_REDIRECT_URI,
-            scope: ['identify']
-        }, (accessToken, refreshToken, profile, done) => {
-            return done(null, profile);
-        }));
-
-        passport.serializeUser((user, done) => done(null, user));
-        passport.deserializeUser((obj, done) => done(null, obj));
-    }
-
-    // ========== DISCORD OAUTH2 ROUTES ==========
-    if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
-        app.get('/admin/auth/discord', passport.authenticate('discord'));
-
-        app.get('/admin/auth/discord/callback',
-            passport.authenticate('discord', { failureRedirect: '/admin' }),
-            (req, res) => {
-                const discordId = req.user?.id;
-                if (discordId && ALLOWED_DISCORD_IDS.includes(discordId)) {
-                    req.session.authenticated = true;
-                    req.session.authMethod = 'discord';
-                    req.session.discordUser = {
-                        id: req.user.id,
-                        username: req.user.username,
-                        avatar: req.user.avatar
-                    };
-                    sendAdminLog('Discord Login Success', `Discord user ${req.user.username} (${discordId}) logged in`, req);
-                    res.redirect('/admin');
-                } else {
-                    sendAdminLog('Discord Login Denied', `Discord user ${req.user?.username} (${discordId}) attempted to log in but is not authorized`, req);
-                    res.send(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <title>Access Denied</title>
-                            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-                            <script src="https://cdn.tailwindcss.com"></script>
-                            <style>body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);}</style>
-                        </head>
-                        <body class="min-h-screen flex items-center justify-center px-4">
-                            <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50 text-center">
-                                <div class="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                </div>
-                                <h2 class="text-2xl font-bold text-white mb-2">Access Denied</h2>
-                                <p class="text-gray-400 mb-6">Your Discord account is not authorized to access the admin panel.</p>
-                                <a href="/admin" class="inline-block bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-medium transition-colors">Return to Login</a>
-                            </div>
-                        </body>
-                        </html>
-                    `);
-                }
-            }
-        );
-    }
-
-    // Helper functions (unchanged)
+    // Helper functions (must be defined before any potential usage)
     function escapeHtml(str) {
         return str.replace(/[&<>]/g, (m) => {
             if (m === '&') return '&amp;';
@@ -117,20 +39,109 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         };
         if (details) embed.fields.push({ name: 'Details', value: details, inline: false });
         try {
-            await fetch(ADMIN_LOG_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeds: [embed] }) });
+            await fetch(ADMIN_LOG_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embeds: [embed] })
+            });
             console.log(`📝 Admin log sent: ${action}`);
         } catch (err) {
             console.error('Admin log webhook failed:', err.message);
         }
     }
 
+    // ========== DISCORD OAUTH2 (optional, graceful fallback) ==========
+    let discordAuthEnabled = false;
+    const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
+    const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+    const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'https://whisper.arsan.my/admin/auth/discord/callback';
+    const ALLOWED_DISCORD_IDS = ['935053416877666304', '935150412661682256'];
+
+    // Try to load Passport modules only if environment variables are set
+    if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
+        try {
+            const passport = require('passport');
+            const DiscordStrategy = require('passport-discord').Strategy;
+
+            app.use(passport.initialize());
+            app.use(passport.session());
+
+            passport.use(new DiscordStrategy({
+                clientID: DISCORD_CLIENT_ID,
+                clientSecret: DISCORD_CLIENT_SECRET,
+                callbackURL: DISCORD_REDIRECT_URI,
+                scope: ['identify']
+            }, (accessToken, refreshToken, profile, done) => {
+                return done(null, profile);
+            }));
+
+            passport.serializeUser((user, done) => done(null, user));
+            passport.deserializeUser((obj, done) => done(null, obj));
+
+            // OAuth2 routes
+            app.get('/admin/auth/discord', passport.authenticate('discord'));
+
+            app.get('/admin/auth/discord/callback',
+                passport.authenticate('discord', { failureRedirect: '/admin' }),
+                (req, res) => {
+                    const discordId = req.user?.id;
+                    if (discordId && ALLOWED_DISCORD_IDS.includes(discordId)) {
+                        req.session.authenticated = true;
+                        req.session.authMethod = 'discord';
+                        req.session.discordUser = {
+                            id: req.user.id,
+                            username: req.user.username,
+                            avatar: req.user.avatar
+                        };
+                        sendAdminLog('Discord Login Success', `Discord user ${req.user.username} (${discordId}) logged in`, req);
+                        res.redirect('/admin');
+                    } else {
+                        sendAdminLog('Discord Login Denied', `Discord user ${req.user?.username} (${discordId}) attempted to log in but is not authorized`, req);
+                        res.send(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <title>Access Denied</title>
+                                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                                <script src="https://cdn.tailwindcss.com"></script>
+                                <style>body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);}</style>
+                            </head>
+                            <body class="min-h-screen flex items-center justify-center px-4">
+                                <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50 text-center">
+                                    <div class="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    </div>
+                                    <h2 class="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                                    <p class="text-gray-400 mb-6">Your Discord account is not authorized to access the admin panel.</p>
+                                    <a href="/admin" class="inline-block bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-medium transition-colors">Return to Login</a>
+                                </div>
+                            </body>
+                            </html>
+                        `);
+                    }
+                }
+            );
+            discordAuthEnabled = true;
+            console.log('✅ Discord OAuth2 enabled for admin panel');
+        } catch (err) {
+            console.warn('⚠️ Could not load passport modules – Discord login will be unavailable. Run `npm install passport passport-discord` to enable it.', err.message);
+            discordAuthEnabled = false;
+        }
+    } else {
+        console.log('ℹ️ Discord OAuth2 not configured – password login only');
+    }
+
+    // ========== ADMIN ROUTES ==========
     app.get('/admin/login', (req, res) => res.redirect('/admin'));
 
     app.get('/admin', (req, res) => {
         if (!isAuthenticated(req)) {
-            const discordAuthEnabled = !!(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET);
-            return res.send(`
-            <!DOCTYPE html>
+            // Login page – show Discord button only if enabled
+            return res.send(`<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
@@ -163,20 +174,19 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     ` : ''}
                 </div>
             </body>
-            </html>
-            `);
+            </html>`);
         }
 
+        // ========== AUTHENTICATED DASHBOARD ==========
         const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
         const recentMessages = messages.slice(-50).reverse();
         const allRooms = roomsModule.getAllRooms();
 
-        let html = `
-        <!DOCTYPE html>
+        let html = `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
             <title>Whisper – Admin</title>
             <link rel="icon" type="image/svg+xml" href="/icons/admin-favicon.svg">
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -187,16 +197,14 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                 ::-webkit-scrollbar { width: 8px; height: 8px; }
                 ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
                 ::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 10px; }
-                ::-webkit-scrollbar-thumb:hover { background: #818cf8; }
                 .card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
                 .card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
                 .message-card { transition: all 0.2s ease; }
-                .message-card:hover { background: rgba(51, 65, 85, 0.8); transform: translateX(2px); }
+                .message-card:hover { background: rgba(51, 65, 85, 0.8); }
                 .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
                 @media (max-width: 640px) {
                     .container { padding-left: 1rem; padding-right: 1rem; }
                     .stat-card { min-width: 100px; }
-                    .user-grid { grid-template-columns: 1fr; }
                 }
                 #toast-container {
                     position: fixed;
@@ -277,19 +285,24 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     <div class="p-5 border-b border-gray-700/50 bg-gray-800/60"><h2 class="text-lg font-semibold text-white">📩・Recent Messages</h2></div>
                     <div class="p-4 max-h-96 overflow-y-auto">`;
         if (recentMessages.length === 0) html += '<div class="text-center py-8 text-gray-400">No messages yet.</div>';
-        else for (const m of recentMessages) {
-            let fileHtml = '';
-            if (m.file) {
-                if (m.file.type && m.file.type.startsWith('image/')) fileHtml = `<div class="mt-2"><img src="${escapeHtml(m.file.url)}" class="max-w-[150px] rounded-lg border border-gray-600" /></div>`;
-                else fileHtml = `<div class="mt-2"><a href="${escapeHtml(m.file.url)}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-sm">📎 ${escapeHtml(m.file.name)}</a></div>`;
+        else {
+            for (const m of recentMessages) {
+                let fileHtml = '';
+                if (m.file) {
+                    if (m.file.type && m.file.type.startsWith('image/')) {
+                        fileHtml = `<div class="mt-2"><img src="${escapeHtml(m.file.url)}" class="max-w-[150px] rounded-lg border border-gray-600" /></div>`;
+                    } else {
+                        fileHtml = `<div class="mt-2"><a href="${escapeHtml(m.file.url)}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-sm">📎 ${escapeHtml(m.file.name)}</a></div>`;
+                    }
+                }
+                html += `
+                            <div class="message-card bg-gray-800/60 rounded-lg p-3 mb-3 border border-gray-700/30" data-message-id="${m.id}">
+                                <div class="flex justify-between items-start mb-1"><span class="font-medium text-indigo-300 text-sm">${escapeHtml(m.senderName)}</span><span class="text-xs text-gray-500">${new Date(m.timestamp).toLocaleString()}</span></div>
+                                <div class="text-gray-300 text-sm mb-2 break-words">${escapeHtml(m.text || '')}</div>
+                                ${fileHtml}
+                                <button class="delete-msg-btn text-red-400 hover:text-red-300 text-xs transition-colors" data-id="${m.id}">🗑️ Delete</button>
+                            </div>`;
             }
-            html += `
-                        <div class="message-card bg-gray-800/60 rounded-lg p-3 mb-3 border border-gray-700/30" data-message-id="${m.id}">
-                            <div class="flex justify-between items-start mb-1"><span class="font-medium text-indigo-300 text-sm">${escapeHtml(m.senderName)}</span><span class="text-xs text-gray-500">${new Date(m.timestamp).toLocaleString()}</span></div>
-                            <div class="text-gray-300 text-sm mb-2 break-words">${escapeHtml(m.text || '')}</div>
-                            ${fileHtml}
-                            <button class="delete-msg-btn text-red-400 hover:text-red-300 text-xs transition-colors" data-id="${m.id}">🗑️ Delete</button>
-                        </div>`;
         }
         html += `</div></div>
 
@@ -450,6 +463,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
         res.send(html);
     });
 
+    // ========== POST ROUTES ==========
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
