@@ -163,7 +163,7 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     <p class="text-center text-gray-400 mb-6">Please authenticate to continue</p>
                     <form action="/admin/login" method="POST" class="space-y-4">
                         <input type="password" name="passcode" placeholder="Enter passcode" autofocus class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Login with Password</button>
+                        <button type="submit" class="w-full bg-[#5865F2] hover:bg-[#4752C4] py-2 rounded-lg font-medium transition-colors shadow-lg">Login with Password</button>
                     </form>
                     ${discordAuthEnabled ? `
                     <div class="relative my-6"><div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-600"></div></div><div class="relative flex justify-center text-sm"><span class="px-2 bg-gray-800/50 text-gray-400">or</span></div></div>
