@@ -2,7 +2,99 @@ const fs = require('fs');
 const path = require('path');
 const roomsModule = require('./rooms');
 
+// ========== DISCORD OAUTH2 IMPORTS ==========
+const passport = require('passport');
+const DiscordStrategy = require('passport-discord').Strategy;
+
 function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames, saveTakenNames, saveUserMappings, sendRoomCreationLog, ROOMS_ENABLED = true, ADMIN_LOG_WEBHOOK = null) {
+    // ========== DISCORD OAUTH2 CONFIGURATION ==========
+    const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
+    const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+    const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || 'https://whisper.arsan.my/admin/auth/discord/callback';
+    // Allowed Discord user IDs (Arsan and his alt)
+    const ALLOWED_DISCORD_IDS = ['935053416877666304', '935150412661682256'];
+    
+    // Initialize Passport
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    // Configure Discord Strategy
+    if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
+        passport.use(new DiscordStrategy({
+            clientID: DISCORD_CLIENT_ID,
+            clientSecret: DISCORD_CLIENT_SECRET,
+            callbackURL: DISCORD_REDIRECT_URI,
+            scope: ['identify']
+        }, (accessToken, refreshToken, profile, done) => {
+            return done(null, profile);
+        }));
+        
+        // Serialize user to session
+        passport.serializeUser((user, done) => {
+            done(null, user);
+        });
+        
+        // Deserialize user from session
+        passport.deserializeUser((obj, done) => {
+            done(null, obj);
+        });
+    }
+    
+    // ========== DISCORD OAUTH2 ROUTES ==========
+    // Initiate Discord OAuth2 login
+    if (DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET) {
+        app.get('/admin/auth/discord', passport.authenticate('discord'));
+        
+        // Discord OAuth2 callback
+        app.get('/admin/auth/discord/callback', 
+            passport.authenticate('discord', { failureRedirect: '/admin' }),
+            (req, res) => {
+                // Check if the user's Discord ID is allowed
+                const discordId = req.user?.id;
+                if (discordId && ALLOWED_DISCORD_IDS.includes(discordId)) {
+                    req.session.authenticated = true;
+                    req.session.authMethod = 'discord';
+                    req.session.discordUser = {
+                        id: req.user.id,
+                        username: req.user.username,
+                        avatar: req.user.avatar
+                    };
+                    // Log successful Discord login
+                    sendAdminLog('Discord Login Success', `Discord user ${req.user.username} (${discordId}) logged in`, req);
+                    res.redirect('/admin');
+                } else {
+                    // Unauthorized: Discord user not in allowed list
+                    sendAdminLog('Discord Login Denied', `Discord user ${req.user?.username} (${discordId}) attempted to log in but is not authorized`, req);
+                    res.send(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title>Access Denied</title>
+                            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                            <script src="https://cdn.tailwindcss.com"></script>
+                            <style>body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);}</style>
+                        </head>
+                        <body class="min-h-screen flex items-center justify-center px-4">
+                            <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50 text-center">
+                                <div class="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <h2 class="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                                <p class="text-gray-400 mb-6">Your Discord account is not authorized to access the admin panel.</p>
+                                <a href="/admin" class="inline-block bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-medium transition-colors">Return to Login</a>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                }
+            }
+        );
+    }
+    
     function escapeHtml(str) {
         return str.replace(/[&<>]/g, (m) => {
             if (m === '&') return '&amp;';
@@ -54,7 +146,8 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
 
     app.get('/admin', (req, res) => {
         if (!isAuthenticated(req)) {
-            // Restored login page
+            // Login page with both password form and Discord button
+            const discordAuthEnabled = !!(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET);
             return res.send(`<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -81,11 +174,31 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                         </div>
                     </div>
                     <h2 class="text-2xl font-bold text-center text-white mb-2">Admin Access</h2>
-                    <p class="text-center text-gray-400 mb-6">Please enter the passcode to continue</p>
+                    <p class="text-center text-gray-400 mb-6">Please authenticate to continue</p>
+                    
+                    <!-- Password Login Form -->
                     <form action="/admin/login" method="POST" class="space-y-4">
                         <input type="password" name="passcode" placeholder="Enter passcode" autofocus class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Login</button>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Login with Password</button>
                     </form>
+                    
+                    ${discordAuthEnabled ? `
+                    <!-- Discord OAuth2 Button -->
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-600"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-gray-800/50 text-gray-400">or</span>
+                        </div>
+                    </div>
+                    <a href="/admin/auth/discord" class="flex items-center justify-center w-full bg-[#5865F2] hover:bg-[#4752C4] py-2 rounded-lg font-medium transition-colors shadow-lg gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" class="w-5 h-5">
+                            <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 8.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.077.077 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1275c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-10.6739-3.5485-15.2276a.061.061 0 00-.0312-.0286zM8.02 15.331c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1569 2.4189 0 1.3332-.9555 2.419-2.1569 2.419zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1569 2.4189 0 1.3332-.946 2.419-2.1569 2.419z"/>
+                        </svg>
+                        Login with Discord
+                    </a>
+                    ` : ''}
                 </div>
             </body>
             </html>`);
@@ -339,45 +452,30 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-5 card">
                         <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">📢・Broadcast Message</h2>
                         <div class="space-y-3">
-                            <textarea id="broadcastText" rows="3" placeholder="Enter your announcement..." class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-vertical"></textarea>
-                            <button id="sendBroadcastBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-medium transition-colors shadow-lg">Send Broadcast</button>
+                            <textarea id="broadcastText" rows="3" placeholder="Enter your announcement..." class="w-full px-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                            <button id="broadcastBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg">Send Broadcast</button>
                         </div>
                     </div>
-                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-800/50 p-5 card">
-                        <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
-                        <div class="space-y-3">
-                            <button id="purgeMessagesBtn" class="w-full bg-red-700 hover:bg-red-800 py-2 rounded-lg font-medium transition-colors shadow-lg">🧹 Purge All Messages</button>
-                            <a href="/admin/logout" class="block w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-medium transition-colors shadow-lg">🚪 Logout</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Custom Modal (for room password) -->
-            <div id="customModal" style="display:none; position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;z-index:2000;">
-                <div style="background:#1e293b;border-radius:1rem;padding:1.5rem;max-width:500px;width:90%;margin:20px;text-align:center;">
-                    <h3 id="modalTitle" style="color:white;margin-bottom:1rem;"></h3>
-                    <p id="modalMessage" style="color:#94a3b8;margin-bottom:1.5rem;"></p>
-                    <div id="modalInputGroup" style="margin-bottom:1.5rem;display:none;">
-                        <input type="text" id="modalInput" placeholder="" style="width:100%;padding:0.75rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
-                    </div>
-                    <div id="modalPasswordGroup" style="margin-bottom:1.5rem;display:none;">
-                        <input type="password" id="modalPassword" placeholder="Room password (optional)" style="width:100%;padding:0.75rem;background:#0f172a;border:1px solid #475569;border-radius:0.5rem;color:white;">
-                    </div>
-                    <div class="flex gap-2 justify-center">
-                        <button id="modalConfirmBtn" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors">Confirm</button>
-                        <button id="modalCancelBtn" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors">Cancel</button>
+                    <div class="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-red-500/30 p-5 card">
+                        <h2 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">⚠️・Danger Zone</h2>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button id="purgeMessagesBtn" class="flex-1 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg">Purge All Messages</button>
+                            <button id="logoutBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg">Logout</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <script>
-                // Toast
+                const socket = io();
+                
+                // Toast notification helper
                 function showToast(message, type = 'info') {
                     const container = document.getElementById('toast-container');
                     const toast = document.createElement('div');
-                    toast.className = 'toast ' + type;
-                    toast.innerText = message;
+                    toast.className = `toast ${type}`;
+                    toast.innerHTML = message;
                     container.appendChild(toast);
                     setTimeout(() => {
                         toast.classList.add('fade-out');
@@ -385,522 +483,295 @@ function setupAdmin(app, io, userMappings, messages, ADMIN_PASSCODE, takenNames,
                     }, 3000);
                 }
 
-                // Dynamic welcome
-                const now = new Date();
-                const hour = now.getHours();
-                const minute = now.getMinutes();
-                let greeting = '';
-                if ((hour === 1 || hour === 2 || hour === 3) || (hour === 4 && minute <= 50)) {
-                    greeting = 'What a hard working night owl';
-                } else if (hour < 12) {
-                    greeting = 'Good morning';
-                } else if (hour < 18) {
-                    greeting = 'Good afternoon';
-                } else {
-                    greeting = 'Good evening';
-                }
-                document.getElementById('welcomeMessage').innerText = greeting === 'What a hard working night owl' ? greeting : greeting + ', handsome.';
-
-                const socket = io();
-                
-                // Real-time refresh functions
-                function refreshMessagesUI() {
-                    fetch('/admin/api/messages')
-                        .then(res => res.json())
-                        .then(data => {
-                            const container = document.getElementById('messagesList');
-                            if (!container) return;
-                            if (data.messages.length === 0) {
-                                container.innerHTML = '<div class="text-center py-8 text-gray-400">No messages yet.</div>';
+                // Delete message
+                document.querySelectorAll('.delete-msg-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const id = btn.dataset.id;
+                        if (confirm('Delete this message?')) {
+                            const res = await fetch('/admin/delete-message', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id })
+                            });
+                            if (res.ok) {
+                                showToast('Message deleted', 'success');
+                                btn.closest('.message-card').remove();
+                                location.reload();
                             } else {
-                                container.innerHTML = data.messages.map(m => {
-                                    let fileHtml = '';
-                                    if (m.file) {
-                                        if (m.file.type && m.file.type.startsWith('image/')) {
-                                            fileHtml = \`<div class="mt-2"><img src="\${escapeHtml(m.file.url)}" class="max-w-[150px] rounded-lg border border-gray-600" /></div>\`;
-                                        } else {
-                                            fileHtml = \`<div class="mt-2"><a href="\${escapeHtml(m.file.url)}" target="_blank" class="text-indigo-400 hover:text-indigo-300 text-sm">📎 \${escapeHtml(m.file.name)}</a></div>\`;
-                                        }
-                                    }
-                                    return \`
-                                        <div class="message-card bg-gray-800/60 rounded-lg p-3 mb-3 border border-gray-700/30" data-message-id="\${m.id}">
-                                            <div class="flex justify-between items-start mb-1">
-                                                <span class="font-medium text-indigo-300 text-sm truncate max-w-[200px]">\${escapeHtml(m.senderName)}</span>
-                                                <span class="text-xs text-gray-500 flex-shrink-0 ml-2">\${new Date(m.timestamp).toLocaleString()}</span>
-                                            </div>
-                                            <div class="text-gray-300 text-sm mb-2 break-words">\${escapeHtml(m.text || '')}</div>
-                                            \${fileHtml}
-                                            <button class="delete-msg-btn text-red-400 hover:text-red-300 text-xs transition-colors" data-id="\${m.id}">🗑️ Delete</button>
-                                        </div>
-                                    \`;
-                                }).join('');
+                                showToast('Failed to delete message', 'error');
                             }
-                            document.getElementById('totalMessagesCount').innerText = data.totalCount;
-                            document.getElementById('recentActivityCount').innerText = data.messages.length;
-                        }).catch(err => console.error(err));
-                }
-                
-                function refreshUsersUI() {
-                    fetch('/admin/api/users')
-                        .then(res => res.json())
-                        .then(data => {
-                            const grid = document.getElementById('usersGrid');
-                            if (!grid) return;
-                            grid.innerHTML = data.users.map(u => \`
-                                <div class="bg-gray-800/60 rounded-lg p-3 flex items-center gap-3 border border-gray-700/30 min-w-0">
-                                    <img src="\${escapeHtml(u.avatar)}" class="avatar-img w-10 h-10 rounded-full border border-gray-600 flex-shrink-0" alt="avatar">
-                                    <div class="flex-1 min-w-0">
-                                        <p class="font-medium text-gray-200 truncate">\${escapeHtml(u.name)}</p>
-                                        <p class="text-xs text-gray-500 truncate">\${u.id}</p>
-                                    </div>
-                                </div>
-                            \`).join('');
-                            document.getElementById('totalUsersCount').innerText = data.users.length;
-                            document.getElementById('usersCount').innerText = data.users.length;
-                        }).catch(console.error);
-                }
-                
-                function refreshStatsUI() {
-                    fetch('/admin/api/stats')
-                        .then(res => res.json())
-                        .then(data => {
-                            document.getElementById('totalMessagesCount').innerText = data.totalMessages;
-                            document.getElementById('totalUsersCount').innerText = data.totalUsers;
-                            document.getElementById('recentActivityCount').innerText = data.recentMessages;
-                            document.getElementById('usersCount').innerText = data.totalUsers;
-                        }).catch(console.error);
-                }
-                
-                function escapeHtml(str) {
-                    if (!str) return '';
-                    return str.replace(/[&<>]/g, function(m) {
-                        if (m === '&') return '&amp;';
-                        if (m === '<') return '&lt;';
-                        if (m === '>') return '&gt;';
-                        return m;
+                        }
+                    });
+                });
+
+                // Create room
+                const createRoomBtn = document.getElementById('createRoomBtn');
+                if (createRoomBtn) {
+                    createRoomBtn.addEventListener('click', async () => {
+                        const name = prompt('Room name:');
+                        if (name) {
+                            const res = await fetch('/admin/create-room', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name })
+                            });
+                            if (res.ok) {
+                                showToast('Room created', 'success');
+                                location.reload();
+                            } else {
+                                showToast('Failed to create room', 'error');
+                            }
+                        }
                     });
                 }
-                
-                socket.on('chat message', () => { refreshMessagesUI(); refreshStatsUI(); });
-                socket.on('message deleted', () => { refreshMessagesUI(); refreshStatsUI(); });
-                socket.on('messages purged', () => { refreshMessagesUI(); refreshStatsUI(); });
-                socket.on('force-reload-identity', () => { refreshUsersUI(); refreshMessagesUI(); refreshStatsUI(); });
-                
-                // Broadcast
-                document.getElementById('sendBroadcastBtn').addEventListener('click', async () => {
-                    const text = document.getElementById('broadcastText').value.trim();
-                    if (!text) { showToast('Enter a broadcast message', 'error'); return; }
-                    const res = await fetch('/admin/broadcast', {
+
+                // Edit room
+                document.querySelectorAll('.edit-room-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const oldName = btn.dataset.room;
+                        const newName = prompt('New room name:', oldName);
+                        if (newName && newName !== oldName) {
+                            const res = await fetch('/admin/edit-room', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ oldName, newName })
+                            });
+                            if (res.ok) {
+                                showToast('Room renamed', 'success');
+                                location.reload();
+                            } else {
+                                showToast('Failed to rename room', 'error');
+                            }
+                        }
+                    });
+                });
+
+                // Delete room
+                document.querySelectorAll('.delete-room-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const name = btn.dataset.room;
+                        if (confirm('Delete this room?')) {
+                            const res = await fetch('/admin/delete-room', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name })
+                            });
+                            if (res.ok) {
+                                showToast('Room deleted', 'success');
+                                location.reload();
+                            } else {
+                                showToast('Failed to delete room', 'error');
+                            }
+                        }
+                    });
+                });
+
+                // Apply preset identity
+                document.getElementById('applyPresetBtn')?.addEventListener('click', async () => {
+                    const userId = document.getElementById('identityUserId').value;
+                    const name = document.getElementById('presetSelect').value;
+                    if (!userId) {
+                        showToast('Please enter a User ID', 'error');
+                        return;
+                    }
+                    const res = await fetch('/admin/rename-user', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ broadcastText: text })
+                        body: JSON.stringify({ userId, name })
                     });
-                    const result = await res.json();
-                    if (result.success) {
-                        showToast('Broadcast sent', 'success');
-                        document.getElementById('broadcastText').value = '';
+                    if (res.ok) {
+                        showToast('Identity updated', 'success');
+                        setTimeout(() => location.reload(), 1000);
                     } else {
-                        showToast(result.message || 'Failed', 'error');
+                        showToast('Failed to update identity', 'error');
                     }
                 });
-                
-                // Preset identity
-                document.getElementById('applyPresetBtn').addEventListener('click', async () => {
-                    const userId = document.getElementById('identityUserId').value.trim();
-                    const preset = document.getElementById('presetSelect').value;
-                    if (!userId) { showToast('Enter User ID', 'error'); return; }
+
+                // Apply custom identity
+                document.getElementById('applyCustomBtn')?.addEventListener('click', async () => {
+                    const userId = document.getElementById('identityUserId').value;
+                    const name = document.getElementById('customNameInput').value;
+                    const avatar = document.getElementById('customAvatarInput').value;
+                    if (!userId) {
+                        showToast('Please enter a User ID', 'error');
+                        return;
+                    }
+                    if (!name && !avatar) {
+                        showToast('Please enter a name or avatar URL', 'error');
+                        return;
+                    }
                     const res = await fetch('/admin/change-identity', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId, preset })
+                        body: JSON.stringify({ userId, name, avatar })
                     });
-                    const result = await res.json();
-                    if (result.success) {
-                        showToast('Preset identity applied', 'success');
-                        refreshUsersUI();
+                    if (res.ok) {
+                        showToast('Identity updated', 'success');
+                        setTimeout(() => location.reload(), 1000);
                     } else {
-                        showToast(result.error || 'Failed', 'error');
+                        showToast('Failed to update identity', 'error');
                     }
                 });
-                
-                // Custom identity (with avatar)
-                document.getElementById('applyCustomBtn').addEventListener('click', async () => {
-                    const userId = document.getElementById('identityUserId').value.trim();
-                    const customName = document.getElementById('customNameInput').value.trim();
-                    const customAvatar = document.getElementById('customAvatarInput').value.trim();
-                    if (!userId || !customName) { showToast('Enter User ID and a name', 'error'); return; }
-                    const res = await fetch('/admin/change-custom-identity', {
+
+                // Broadcast message
+                document.getElementById('broadcastBtn')?.addEventListener('click', async () => {
+                    const message = document.getElementById('broadcastText').value;
+                    if (!message) {
+                        showToast('Please enter a message', 'error');
+                        return;
+                    }
+                    const res = await fetch('/admin/broadcast', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId, customName, customAvatar: customAvatar || null })
+                        body: JSON.stringify({ message })
                     });
-                    const result = await res.json();
-                    if (result.success) {
-                        showToast('Custom identity applied', 'success');
-                        refreshUsersUI();
-                        document.getElementById('customNameInput').value = '';
-                        document.getElementById('customAvatarInput').value = '';
+                    if (res.ok) {
+                        showToast('Broadcast sent', 'success');
+                        document.getElementById('broadcastText').value = '';
                     } else {
-                        showToast(result.error || 'Failed', 'error');
+                        showToast('Failed to send broadcast', 'error');
                     }
                 });
-                
-                // Purge messages
-                document.getElementById('purgeMessagesBtn').addEventListener('click', async () => {
-                    if (!confirm('⚠️ Are you sure you want to purge ALL messages? This cannot be undone!')) return;
-                    const res = await fetch('/admin/purge-messages', { method: 'POST' });
-                    const result = await res.json();
-                    if (result.success) {
-                        showToast('All messages purged', 'success');
-                        refreshMessagesUI();
-                        refreshStatsUI();
-                    } else {
-                        showToast(result.message || 'Purge failed', 'error');
-                    }
-                });
-                
-                // Delete message (delegation)
-                document.getElementById('messagesList').addEventListener('click', async (e) => {
-                    const btn = e.target.closest('.delete-msg-btn');
-                    if (!btn) return;
-                    const id = btn.getAttribute('data-id');
-                    if (confirm('Delete this message?')) {
-                        const res = await fetch('/admin/delete-message/' + id, { method: 'POST' });
-                        const result = await res.json();
-                        if (result.success) {
-                            showToast('Message deleted', 'success');
-                            refreshMessagesUI();
-                            refreshStatsUI();
+
+                // Purge all messages
+                document.getElementById('purgeMessagesBtn')?.addEventListener('click', async () => {
+                    if (confirm('⚠️ WARNING: This will delete ALL messages. Are you absolutely sure?')) {
+                        const res = await fetch('/admin/purge-messages', { method: 'POST' });
+                        if (res.ok) {
+                            showToast('All messages purged', 'success');
+                            setTimeout(() => location.reload(), 1000);
                         } else {
-                            showToast(result.message || 'Delete failed', 'error');
+                            showToast('Failed to purge messages', 'error');
                         }
                     }
                 });
-                
-                ${ROOMS_ENABLED ? `
-                // Room Management Functions
-                function showCustomModal(title, message, showInput = false, showPassword = false, placeholder = '') {
-                    return new Promise((resolve) => {
-                        const modal = document.getElementById('customModal');
-                        const modalTitle = document.getElementById('modalTitle');
-                        const modalMessage = document.getElementById('modalMessage');
-                        const modalInputGroup = document.getElementById('modalInputGroup');
-                        const modalPasswordGroup = document.getElementById('modalPasswordGroup');
-                        const modalInput = document.getElementById('modalInput');
-                        const modalPassword = document.getElementById('modalPassword');
-                        
-                        modalTitle.innerText = title;
-                        modalMessage.innerText = message;
-                        modalInputGroup.style.display = showInput ? 'block' : 'none';
-                        modalPasswordGroup.style.display = showPassword ? 'block' : 'none';
-                        modalInput.value = '';
-                        modalPassword.value = '';
-                        if (placeholder) modalInput.placeholder = placeholder;
-                        
-                        modal.style.display = 'flex';
-                        
-                        const confirmHandler = () => {
-                            modal.style.display = 'none';
-                            modalConfirmBtn.removeEventListener('click', confirmHandler);
-                            modalCancelBtn.removeEventListener('click', cancelHandler);
-                            resolve({ confirmed: true, input: modalInput.value, password: modalPassword.value });
-                        };
-                        const cancelHandler = () => {
-                            modal.style.display = 'none';
-                            modalConfirmBtn.removeEventListener('click', confirmHandler);
-                            modalCancelBtn.removeEventListener('click', cancelHandler);
-                            resolve({ confirmed: false });
-                        };
-                        
-                        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
-                        const modalCancelBtn = document.getElementById('modalCancelBtn');
-                        modalConfirmBtn.addEventListener('click', confirmHandler);
-                        modalCancelBtn.addEventListener('click', cancelHandler);
-                    });
-                }
-                
-                document.getElementById('createRoomBtn').addEventListener('click', async () => {
-                    const result = await showCustomModal('Create New Room', 'Enter room name:', true, true, 'Room name (e.g., gaming-lounge)');
-                    if (result.confirmed && result.input) {
-                        const roomName = result.input.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
-                        const password = result.password.trim() || null;
-                        const res = await fetch('/admin/api/rooms/create', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ roomName, password })
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                            showToast(\`Room "\${roomName}" created successfully\`, 'success');
-                            setTimeout(() => window.location.reload(), 1500);
-                        } else {
-                            showToast(data.error || 'Failed to create room', 'error');
-                        }
-                    }
+
+                // Logout
+                document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+                    const res = await fetch('/admin/logout', { method: 'POST' });
+                    if (res.ok) location.reload();
                 });
-                
-                document.querySelectorAll('.edit-room-btn').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        const roomName = btn.getAttribute('data-room');
-                        const result = await showCustomModal(\`Edit Room: \${roomName}\`, 'Set new password (leave empty to remove password):', false, true, 'New password (optional)');
-                        if (result.confirmed) {
-                            const newPassword = result.password.trim() || null;
-                            const res = await fetch('/admin/api/rooms/update-password', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ roomName, password: newPassword })
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                                showToast('Room password updated', 'success');
-                                setTimeout(() => window.location.reload(), 1500);
-                            } else {
-                                showToast(data.error || 'Failed to update password', 'error');
-                            }
-                        }
-                    });
-                });
-                
-                document.querySelectorAll('.delete-room-btn').forEach(btn => {
-                    btn.addEventListener('click', async () => {
-                        const roomName = btn.getAttribute('data-room');
-                        const result = await showCustomModal('Delete Room', \`Are you sure you want to delete room "\${roomName}"? This will remove all messages and cannot be undone.\`);
-                        if (result.confirmed) {
-                            const res = await fetch('/admin/api/rooms/delete', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ roomName })
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                                showToast(\`Room "\${roomName}" deleted\`, 'success');
-                                setTimeout(() => window.location.reload(), 1500);
-                            } else {
-                                showToast(data.error || 'Failed to delete room', 'error');
-                            }
-                        }
-                    });
-                });
-                ` : ''}
-                
-                refreshMessagesUI();
-                refreshUsersUI();
-                refreshStatsUI();
             </script>
         </body>
         </html>`;
         res.send(html);
     });
 
-    // --- API endpoints for real-time UI (unchanged) ---
-    app.get('/admin/api/messages', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const recent = messages.slice(-50).reverse();
-        res.json({ messages: recent, totalCount: messages.length });
-    });
-
-    app.get('/admin/api/users', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const userList = Object.entries(userMappings).map(([id, data]) => ({ id, name: data.name, avatar: data.avatar }));
-        res.json({ users: userList });
-    });
-
-    app.get('/admin/api/stats', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const userCount = Object.keys(userMappings).length;
-        const recentCount = Math.min(messages.length, 50);
-        res.json({ totalMessages: messages.length, totalUsers: userCount, recentMessages: recentCount });
-    });
-
-    // Room API endpoints (only if enabled)
-    if (ROOMS_ENABLED) {
-        app.post('/admin/api/rooms/create', (req, res) => {
-            if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-            const { roomName, password } = req.body;
-            if (!roomName || roomName.trim() === '') {
-                return res.status(400).json({ error: 'Room name is required' });
-            }
-            const sanitizedName = roomName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
-            if (roomsModule.roomExists(sanitizedName)) {
-                return res.status(400).json({ error: 'Room already exists' });
-            }
-            roomsModule.createRoom(sanitizedName, password || null);
-            const roomLink = `${req.protocol}://${req.get('host')}/room/${sanitizedName}`;
-            if (sendRoomCreationLog) sendRoomCreationLog(sanitizedName, password || null, roomLink);
-            res.json({ success: true });
-        });
-
-        app.post('/admin/api/rooms/update-password', (req, res) => {
-            if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-            const { roomName, password } = req.body;
-            if (!roomsModule.roomExists(roomName)) return res.status(400).json({ error: 'Room not found' });
-            roomsModule.updateRoomPassword(roomName, password || null);
-            res.json({ success: true });
-        });
-
-        app.post('/admin/api/rooms/delete', (req, res) => {
-            if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-            const { roomName } = req.body;
-            if (!roomsModule.roomExists(roomName)) return res.status(400).json({ error: 'Room not found' });
-            roomsModule.deleteRoom(roomName);
-            res.json({ success: true });
-        });
-    } else {
-        app.post('/admin/api/rooms/create', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
-        app.post('/admin/api/rooms/update-password', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
-        app.post('/admin/api/rooms/delete', (req, res) => res.status(503).json({ error: 'Rooms feature is temporarily disabled' }));
-    }
-
-    // POST endpoints for admin actions (with logging)
     app.post('/admin/login', (req, res) => {
         const { passcode } = req.body;
         if (passcode === ADMIN_PASSCODE) {
             req.session.authenticated = true;
-            sendAdminLog('Login', 'Successful login to admin panel', req);
+            req.session.authMethod = 'password';
+            sendAdminLog('Password Login Success', 'Logged in via password', req);
             res.redirect('/admin');
         } else {
-            res.send(`<!DOCTYPE html>
-            <html lang="en">
-            <head><meta charset="UTF-8"><title>Login Failed</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><style>body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);}</style></head>
-            <body class="min-h-screen flex items-center justify-center px-4">
-                <div class="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-700/50 text-center">
-                    <div class="text-red-400 mb-4"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-12 h-12 mx-auto"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                    <p class="text-gray-300 mb-4">Wrong passcode. Please try again.</p>
-                    <a href="/admin" class="text-indigo-400 hover:text-indigo-300 transition-colors">← Back to login</a>
-                </div>
-            </body>
-            </html>`);
+            sendAdminLog('Password Login Failed', 'Invalid passcode attempt', req);
+            res.send('<h3>Invalid passcode. <a href="/admin">Try again</a></h3>');
         }
     });
 
-    app.post('/admin/broadcast', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const broadcastText = req.body.broadcastText?.trim();
-        if (broadcastText) {
-            io.emit('system message', { text: `📢 Admin: ${broadcastText}` });
-            console.log(`Admin broadcast: ${broadcastText}`);
-            sendAdminLog('Broadcast', `Message: "${broadcastText}"`, req);
-            res.json({ success: true });
-        } else {
-            res.status(400).json({ success: false, message: 'No message' });
-        }
-    });
-
-    app.post('/admin/delete-message/:id', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const messageId = req.params.id;
-        const index = messages.findIndex(m => m.id === messageId);
+    app.post('/admin/delete-message', (req, res) => {
+        if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+        const { id } = req.body;
+        const index = messages.findIndex(m => m.id === id);
         if (index !== -1) {
-            const msg = messages[index];
-            if (msg.file && msg.file.url) {
-                const filePath = path.join(__dirname, msg.file.url);
-                fs.unlink(filePath, (err) => {
-                    if (err && err.code !== 'ENOENT') console.error(`Failed to delete file ${filePath}:`, err);
-                });
-            }
-            messages.splice(index, 1);
-            io.emit('message deleted', { id: messageId });
-            console.log(`🗑️ Admin deleted message ${messageId}`);
-            sendAdminLog('Delete Message', `Deleted message from ${msg.senderName}`, req);
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ success: false, message: 'Message not found' });
+            const deleted = messages.splice(index, 1)[0];
+            io.emit('message deleted', { id });
+            sendAdminLog('Delete Message', `Deleted message from ${deleted.senderName}`, req);
         }
+        res.json({ success: true });
     });
 
     app.post('/admin/purge-messages', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const purgedCount = messages.length;
-        for (const msg of messages) {
-            if (msg.file && msg.file.url) {
-                const filePath = path.join(__dirname, msg.file.url);
-                fs.unlink(filePath, (err) => {
-                    if (err && err.code !== 'ENOENT') console.error(`Failed to delete file ${filePath}:`, err);
-                });
-            }
-        }
+        if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
         messages.length = 0;
         io.emit('messages purged');
-        console.log('🧹 Admin purged all messages');
-        sendAdminLog('Purge Messages', `Purged ${purgedCount} messages`, req);
+        sendAdminLog('Purge Messages', 'All messages deleted', req);
         res.json({ success: true });
+    });
+
+    app.post('/admin/broadcast', (req, res) => {
+        if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+        const { message } = req.body;
+        if (message) {
+            io.emit('system message', { text: message });
+            sendAdminLog('Broadcast', `"${message}"`, req);
+        }
+        res.json({ success: true });
+    });
+
+    app.post('/admin/rename-user', (req, res) => {
+        if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+        const { userId, name } = req.body;
+        if (userId && name && userMappings[userId]) {
+            const oldName = userMappings[userId].name;
+            userMappings[userId].name = name;
+            saveUserMappings();
+            io.emit('force-reload-identity', { userId });
+            sendAdminLog('Rename User', `Renamed user ${userId} from "${oldName}" to "${name}"`, req);
+            res.json({ success: true });
+        } else {
+            res.status(400).json({ success: false, error: 'Invalid user ID or name' });
+        }
     });
 
     app.post('/admin/change-identity', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const { preset, userId } = req.body;
-        if (!preset || !userId) return res.status(400).json({ error: 'Missing preset or user ID' });
-        if (!userMappings[userId]) return res.status(400).json({ error: 'User not found' });
-
-        const presets = {
-            Arsan: { name: 'Arsan', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-            ArGzf: { name: 'ArGzf', avatar: 'https://cdn.discordapp.com/avatars/935053416877666304/47a4a97c8aec961daed192cd2c4cde12.png' },
-            Admin: { name: 'Admin', avatar: '/icons/admin-favicon.svg' },
-        };
-        const newIdentity = presets[preset];
-        if (!newIdentity) return res.status(400).json({ error: 'Invalid preset' });
-
-        const existing = Object.entries(userMappings).find(([id, data]) => data.name === newIdentity.name && id !== userId);
-        if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
-
-        const oldName = userMappings[userId].name;
-        const oldAvatar = userMappings[userId].avatar;
-        userMappings[userId] = { name: newIdentity.name, avatar: newIdentity.avatar };
-        saveUserMappings();
-
-        if (!takenNames.has(newIdentity.name)) {
-            takenNames.add(newIdentity.name);
-            saveTakenNames();
+        if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+        const { userId, name, avatar } = req.body;
+        if (userId && userMappings[userId]) {
+            if (name) userMappings[userId].name = name;
+            if (avatar) userMappings[userId].avatar = avatar;
+            saveUserMappings();
+            io.emit('force-reload-identity', { userId });
+            sendAdminLog('Change Identity', `Changed identity for user ${userId} - Name: ${name}, Avatar: ${avatar}`, req);
+            res.json({ success: true });
+        } else {
+            res.status(400).json({ success: false, error: 'Invalid user ID' });
         }
-
-        io.emit('force-reload-identity', { userId });
-        const details = `User ID: ${userId}\nOld: ${oldName} (${oldAvatar})\nNew: ${newIdentity.name} (${newIdentity.avatar})`;
-        sendAdminLog('Identity Change (Preset)', details, req);
-        res.json({ success: true });
     });
 
-    app.post('/admin/change-custom-identity', (req, res) => {
-        if (!isAuthenticated(req)) return res.status(401).json({ error: 'Unauthorized' });
-        const { userId, customName, customAvatar } = req.body;
-        if (!userId || !customName || customName.trim() === '') {
-            return res.status(400).json({ error: 'User ID and custom name are required' });
+    app.post('/admin/logout', (req, res) => {
+        const authMethod = req.session.authMethod;
+        if (authMethod === 'discord') {
+            sendAdminLog('Discord Logout', 'Logged out via Discord', req);
+        } else {
+            sendAdminLog('Password Logout', 'Logged out via password', req);
         }
-        if (!userMappings[userId]) return res.status(400).json({ error: 'User not found' });
-
-        const newName = customName.trim();
-        const existing = Object.entries(userMappings).find(([id, data]) => data.name === newName && id !== userId);
-        if (existing) return res.status(400).json({ error: 'This name is already taken and cannot be reused.' });
-
-        const oldName = userMappings[userId].name;
-        const oldAvatar = userMappings[userId].avatar;
-        userMappings[userId].name = newName;
-        let avatarChanged = false;
-        if (customAvatar && customAvatar.trim() !== '') {
-            userMappings[userId].avatar = customAvatar.trim();
-            avatarChanged = true;
-        }
-        saveUserMappings();
-
-        if (oldName && takenNames.has(oldName)) {
-            takenNames.delete(oldName);
-            saveTakenNames();
-        }
-        if (!takenNames.has(newName)) {
-            takenNames.add(newName);
-            saveTakenNames();
-        }
-
-        io.emit('force-reload-identity', { userId });
-        const details = `User ID: ${userId}\nOld: ${oldName} (${oldAvatar})\nNew: ${newName}${avatarChanged ? ` (${customAvatar.trim()})` : ' (avatar unchanged)'}`;
-        sendAdminLog('Identity Change (Custom)', details, req);
-        console.log(`🖊️ Admin changed user ${userId} name from "${oldName}" to "${newName}"${avatarChanged ? ' and avatar' : ''}`);
-        res.json({ success: true });
-    });
-
-    app.get('/admin/logout', (req, res) => {
         req.session.destroy();
         res.redirect('/admin');
     });
+
+    if (ROOMS_ENABLED) {
+        app.post('/admin/create-room', (req, res) => {
+            if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+            const { name, password } = req.body;
+            if (name && !roomsModule.roomExists(name)) {
+                roomsModule.createRoom(name, password);
+                sendAdminLog('Create Room', `Room "${name}" created`, req);
+                if (sendRoomCreationLog) sendRoomCreationLog(name);
+            }
+            res.json({ success: true });
+        });
+        app.post('/admin/edit-room', (req, res) => {
+            if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+            const { oldName, newName, password } = req.body;
+            if (oldName && newName && roomsModule.roomExists(oldName)) {
+                roomsModule.renameRoom(oldName, newName);
+                if (password) roomsModule.setRoomPassword(newName, password);
+                sendAdminLog('Edit Room', `Renamed "${oldName}" to "${newName}"`, req);
+            }
+            res.json({ success: true });
+        });
+        app.post('/admin/delete-room', (req, res) => {
+            if (!isAuthenticated(req)) return res.status(401).send('Unauthorized');
+            const { name } = req.body;
+            if (name && roomsModule.roomExists(name)) {
+                roomsModule.deleteRoom(name);
+                sendAdminLog('Delete Room', `Room "${name}" deleted`, req);
+            }
+            res.json({ success: true });
+        });
+    }
 }
 
 module.exports = setupAdmin;
